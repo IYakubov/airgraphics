@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AirShape Design</title>
+<style>
+:root{--o:#D97757;--o2:#C15F3C;--sel:#0C8CE9;--ink:#1f1e1c;--mute:#8b887f;--line:#ecebe6;--panel:#ffffff;
+  --font:"Inter",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:var(--font);font-size:12px;color:var(--ink);background:#EEEDE9;user-select:none;-webkit-user-select:none}
+input,textarea,[contenteditable=true]{user-select:text;-webkit-user-select:text}
+#stage{position:fixed;inset:0;background-color:#EEEDE9;
+  background-image:radial-gradient(circle,#d3d0c8 1px,transparent 1.3px);touch-action:none}
+#stage.grab{cursor:grab}#stage.grabbing{cursor:grabbing}#stage.cross{cursor:crosshair}#stage.txt{cursor:text}
+#doc,#ov{position:fixed;inset:0;width:100%;height:100%;overflow:visible}
+#ov{pointer-events:none}
+#ov .fl{font:500 11px var(--font);fill:#8b887f}
+#ov .fl.on{fill:var(--sel)}
+#hands{position:fixed;inset:0;pointer-events:none;z-index:40}
+.hc{position:fixed;left:0;top:0;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid #8b887f;
+  pointer-events:none;z-index:41;display:none;transition:background .12s,border-color .12s,width .12s,height .12s,margin .12s}
+.hc.on{display:block}.hc.lock{opacity:.35}.hc.tool{border-color:var(--o)}
+.hc.pinch{background:var(--o);border-color:var(--o);width:14px;height:14px;margin:-7px 0 0 -7px}
+.hc.fist{border-style:dashed;border-color:var(--ink);width:34px;height:34px;margin:-17px 0 0 -17px}
+
+.ui{position:fixed;z-index:20;background:var(--panel);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06),0 8px 30px rgba(40,30,20,.08);border:1px solid rgba(0,0,0,.05)}
+#left{top:12px;left:12px;bottom:12px;width:240px;display:flex;flex-direction:column}
+#right{top:12px;right:12px;bottom:12px;width:250px;display:flex;flex-direction:column}
+.hdr{padding:12px 12px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.logo{width:22px;height:22px;border-radius:7px;background:var(--o);display:grid;place-items:center;flex:none}
+.logo i{width:8px;height:8px;border-radius:2px;background:#fff;transform:rotate(45deg)}
+#fname{font:600 13px var(--font);border:0;outline:0;background:transparent;width:100%;padding:3px 4px;border-radius:5px}
+#fname:hover,#fname:focus{background:#f5f4f0}
+.ttl{padding:12px 14px 6px;font-weight:600;font-size:11.5px}
+#layers{flex:1;overflow:auto;padding:0 6px 10px}
+.layer{display:flex;align-items:center;gap:7px;height:28px;padding:0 8px;border-radius:7px;cursor:default;white-space:nowrap}
+.layer:hover{background:#f5f4f0}.layer.on{background:#e5f2fd}
+.layer.child{padding-left:26px}
+.layer svg{width:14px;height:14px;flex:none;stroke:#8b887f;fill:none;stroke-width:1.7}
+.layer.on svg{stroke:var(--sel)}
+.layer .nm{overflow:hidden;text-overflow:ellipsis;outline:0}
+.layer.frame .nm{font-weight:600}
+
+.rtop{display:flex;align-items:center;gap:6px;padding:10px 10px;border-bottom:1px solid var(--line)}
+.btn{font:600 12px var(--font);border:0;border-radius:8px;padding:8px 11px;cursor:pointer;background:#f3f2ee;color:var(--ink);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:#e9e8e3}
+.btn.pri{background:var(--o);color:#fff}.btn.pri:hover{background:var(--o2)}
+.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+#handsBtn.live{background:#fbeee8;color:var(--o2)}
+#handsBtn .dot{width:7px;height:7px;border-radius:50%;background:#b7b3a9}
+#handsBtn.live .dot{background:var(--o);box-shadow:0 0 0 3px rgba(217,119,87,.25)}
+#zoom{margin-left:auto;color:var(--mute);font-weight:500;padding:0 4px;cursor:pointer}
+#props{flex:1;overflow:auto}
+.sec{padding:12px 14px;border-bottom:1px solid var(--line)}
+.lbl{font-weight:600;font-size:11.5px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.fld{display:flex;align-items:center;background:#f5f4f0;border-radius:7px;height:30px;padding:0 8px;gap:6px;border:1px solid transparent}
+.fld:focus-within{border-color:var(--sel);background:#fff}
+.fld span{color:var(--mute);font-size:11px;min-width:10px}
+.fld input,.fld select{border:0;outline:0;background:transparent;font:500 12px var(--font);width:100%;color:var(--ink)}
+.fld input[type=color]{width:20px;height:20px;padding:0;border-radius:5px;flex:none;cursor:pointer}
+.fld input[type=color]::-webkit-color-swatch-wrapper{padding:0}.fld input[type=color]::-webkit-color-swatch{border:1px solid rgba(0,0,0,.1);border-radius:5px}
+.mt{margin-top:7px}
+.head input{font:600 13px var(--font);border:0;outline:0;width:100%;padding:4px 6px;border-radius:6px;background:transparent}
+.head input:hover,.head input:focus{background:#f5f4f0}
+.head{display:flex;align-items:center;gap:6px}
+.head svg{width:16px;height:16px;stroke:var(--mute);fill:none;stroke-width:1.7;flex:none}
+.alg{display:flex;gap:2px;background:#f5f4f0;border-radius:8px;padding:2px}
+.alg button{flex:1;height:26px;border:0;background:transparent;border-radius:6px;cursor:pointer;display:grid;place-items:center}
+.alg button:hover{background:#fff}.alg button:disabled{opacity:.35;cursor:default;background:transparent}
+.alg svg{width:16px;height:16px;stroke:var(--ink);fill:none;stroke-width:1.6}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.acts .btn{justify-content:center}
+.acts .del{color:#c0392b}
+textarea.ta{width:100%;min-height:54px;border:1px solid transparent;border-radius:7px;background:#f5f4f0;font:500 12px var(--font);padding:7px 8px;outline:0;resize:vertical}
+textarea.ta:focus{border-color:var(--sel);background:#fff}
+.gest{display:grid;gap:7px}
+.gest div{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:9px;background:#f7f6f2;line-height:1.3}
+.gest b{display:block;font-size:12px}.gest small{color:var(--mute);font-size:11px}
+.gest svg{width:18px;height:18px;stroke:var(--o);fill:none;stroke-width:1.8;flex:none}
+.muted{color:var(--mute);line-height:1.5}
+
+#toolbar{left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:2px;padding:5px;border-radius:14px}
+#toolbar .sep{width:1px;background:var(--line);margin:6px 4px}
+.tb{position:relative;width:40px;height:40px;border:0;border-radius:10px;background:transparent;cursor:pointer;display:grid;place-items:center;overflow:hidden}
+.tb:hover{background:#f3f2ee}
+.tb svg{width:20px;height:20px;stroke:var(--ink);fill:none;stroke-width:1.7;stroke-linejoin:round;stroke-linecap:round}
+.tb.on{background:var(--o)}.tb.on svg{stroke:#fff}
+.tb .bar{position:absolute;left:0;bottom:0;height:3px;background:var(--o);width:0}
+.tb.on .bar{background:#fff}
+.tb .tip{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 9px;border-radius:7px;font-size:11px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s}
+.tb{overflow:visible}.tb:hover .tip{opacity:1}
+.tip kbd{font-family:var(--font);opacity:.6;margin-left:6px}
+#hint{position:fixed;bottom:72px;left:50%;transform:translateX(-50%);z-index:19;font-size:12px;color:var(--mute);background:rgba(255,255,255,.85);padding:6px 12px;border-radius:999px;white-space:nowrap;opacity:0;transition:opacity .3s}
+#hint.on{opacity:1}
+#toast{position:fixed;top:44%;left:50%;transform:translate(-50%,-50%) scale(.92);z-index:45;font-size:36px;font-weight:750;letter-spacing:-.03em;color:var(--o);opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;text-shadow:0 2px 24px #fff}
+#toast.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#toast.small{font-size:14px;font-weight:600;color:var(--ink);background:#fff;padding:9px 14px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.1);text-shadow:none;top:auto;bottom:112px;transform:translate(-50%,0)}
+textarea.te{position:fixed;z-index:15;border:1.5px solid var(--sel);background:transparent;outline:0;resize:none;overflow:hidden;white-space:pre;line-height:1.2;padding:0;margin:0}
+#cam{position:fixed;right:276px;bottom:16px;width:200px;border-radius:12px;transform:scaleX(-1);z-index:30;display:none;box-shadow:0 8px 30px rgba(0,0,0,.15)}
+#cam.show{display:block}
+.menu{position:absolute;top:44px;right:10px;background:#fff;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.14);padding:5px;display:none;z-index:30;min-width:170px}
+.menu.on{display:block}
+.menu button{display:block;width:100%;text-align:left;border:0;background:transparent;font:500 12px var(--font);padding:8px 10px;border-radius:7px;cursor:pointer}
+.menu button:hover{background:#f3f2ee}
+#handsMenu{left:10px;right:auto;min-width:220px}
+.menu button small{display:block;color:var(--mute);font-size:11px;font-weight:400;margin-top:1px}
+.modal{position:fixed;inset:0;z-index:60;background:rgba(238,237,233,.7);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center}
+.modal.on{display:flex}
+.mcard{width:min(380px,92vw);background:#fff;border-radius:22px;padding:24px;box-shadow:0 30px 80px rgba(60,40,20,.16);text-align:center}
+.mcard h3{font-size:18px;letter-spacing:-.02em;margin-bottom:6px}
+#qr{width:236px;height:236px;margin:16px auto 14px;display:grid;place-items:center;border-radius:14px;background:#f7f6f2}
+#qr svg{width:220px;height:220px}
+#pstatus{margin:12px 0 14px;font-weight:600;font-size:12.5px;color:var(--o2);min-height:18px}
+.mcard .fld{text-align:left}
+.mcard .note{font-size:11px;color:var(--mute);line-height:1.45;margin-top:8px;text-align:left}
+/* phone camera page */
+body.phone{background:#111;color:#fff}
+body.phone > :not(#phoneUI){display:none!important}
+#phoneUI{position:fixed;inset:0;display:flex;flex-direction:column;padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));gap:12px;font-size:14px}
+#phoneUI .top{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px}
+#phoneUI video{flex:1;min-height:0;width:100%;object-fit:cover;border-radius:18px;background:#000}
+#phoneUI video.mirror{transform:scaleX(-1)}
+#phoneUI .st{text-align:center;color:#d8d4cb;min-height:20px}
+#phoneUI .st b{color:#F0A687}
+#phoneUI .row{display:flex;gap:10px}
+#phoneUI button{flex:1;font:600 15px var(--font);border:0;border-radius:14px;padding:15px;background:#2a2926;color:#fff}
+#phoneUI button.pri{background:var(--o)}
+#phoneUI .tip{font-size:12px;color:#9a968d;text-align:center;line-height:1.45}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<div id="stage"><svg id="doc"><defs id="defs"></defs><g id="world"></g></svg></div>
+<svg id="ov"></svg>
+
+<div id="left" class="ui">
+  <div class="hdr"><div class="logo"><i></i></div><input id="fname" value="Untitled" spellcheck="false"></div>
+  <div class="ttl">Layers</div>
+  <div id="layers"></div>
+</div>
+
+<div id="right" class="ui">
+  <div class="rtop">
+    <button class="btn" id="handsBtn" title="Design with your hands"><span class="dot"></span>Hands</button>
+    <button class="btn" id="exportBtn"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Export</button>
+    <span id="zoom" title="Zoom to fit (Shift+1)">100%</span>
+    <div class="menu" id="handsMenu">
+      <button data-src="webcam">This computer's camera<small>Built-in or USB webcam</small></button>
+      <button data-src="phone">Phone as camera<small>Scan a QR code with your phone</small></button>
+    </div>
+    <div class="menu" id="exportMenu">
+      <button data-exp="png">PNG (2×)</button>
+      <button data-exp="svg">SVG</button>
+      <button data-exp="json">Project file (.json)</button>
+      <button data-exp="open">Open project file…</button>
+    </div>
+  </div>
+  <div id="props"></div>
+</div>
+
+<div id="toolbar" class="ui"></div>
+<div id="hint"></div>
+<div id="toast"></div>
+<video id="cam" playsinline muted autoplay></video>
+ <div class="modal" id="phoneModal"><div class="mcard">
+  <h3>Use your phone as the camera</h3>
+  <div class="muted">Scan with your phone and tap <b>Start camera</b>. Put the phone by your monitor, facing you.</div>
+  <div id="qr"><span class="muted">Preparing…</span></div>
+  <label class="fld"><span>Link</span><input id="phoneUrl" spellcheck="false"></label>
+  <div class="note" id="pnote"></div>
+  <div id="pstatus"></div>
+  <button class="btn" id="pcancel" style="width:100%;justify-content:center">Cancel</button>
+</div></div>
+<input type="file" id="openFile" accept=".json,application/json" hidden>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const PEER_JS = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
+const QR_JS = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+const loadScript = src => new Promise((res, rej) => {
+  if (document.querySelector(`script[src="${src}"]`)) return res();
+  const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.appendChild(s);
+});
+const PHONE_TARGET = new URLSearchParams(location.search).get('cam');
+if (PHONE_TARGET) phoneMain(); else main();
+
+function main() {
+
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const FONT = 'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+const ORANGE = '#D97757';
+
+/* =========================================================
+   ICONS
+   ========================================================= */
+const IC = {
+  move: '<path d="M6 3.5l12 7.2-5.3 1.5-2.4 5.3z"/>',
+  frame: '<path d="M8 3v18M16 3v18M3 8h18M3 16h18"/>',
+  rect: '<rect x="4" y="5.5" width="16" height="13" rx="1.5"/>',
+  ellipse: '<circle cx="12" cy="12" r="8"/>',
+  triangle: '<path d="M12 4.5l8.5 15h-17z"/>',
+  text: '<path d="M5 7V4.5h14V7M12 4.5v15M9 19.5h6"/>',
+  hand: '<path d="M8.5 12.5V6.2a1.4 1.4 0 012.8 0v4.8m0-5.6a1.4 1.4 0 012.8 0V11m0-4.2a1.4 1.4 0 012.8 0v6.4c0 4-2.4 6.8-6.2 6.8-2.6 0-4.2-1.4-5.2-3.2l-2-3.8a1.4 1.4 0 012.4-1.4l1.6 2"/>'
+};
+const svgI = (k, cls = '') => `<svg viewBox="0 0 24 24" class="${cls}">${IC[k]}</svg>`;
+const ALG = {
+  l: '<path d="M4 3v18M8 7h10M8 13h6"/>', c: '<path d="M12 3v18M6 7h12M8 13h8"/>', r: '<path d="M20 3v18M6 7h10M10 13h6"/>',
+  t: '<path d="M3 4h18M7 8v10M13 8v6"/>', m: '<path d="M3 12h18M7 6v12M13 8v8"/>', b: '<path d="M3 20h18M7 6v10M13 10v6"/>'
+};
+
+/* =========================================================
+   DOCUMENT
+   ========================================================= */
+let doc = [];                 // ordered nodes; children reference parent frame id
+let sel = new Set();
+const view = { x: 0, y: 0, z: 1 };
+let tool = 'move';
+const DRAW = ['frame', 'rect', 'ellipse', 'triangle'];
+const TYPE_NAME = { frame: 'Frame', rect: 'Rectangle', ellipse: 'Ellipse', triangle: 'Triangle', text: 'Text' };
+const get = id => doc.find(n => n.id === id);
+const S2W = (sx, sy) => ({ x: (sx - view.x) / view.z, y: (sy - view.y) / view.z });
+const W2S = (wx, wy) => ({ x: wx * view.z + view.x, y: wy * view.z + view.y });
+let idc = 1;
+const newId = () => 'n' + (idc++) + Math.random().toString(36).slice(2, 6);
+
+const mctx = document.createElement('canvas').getContext('2d');
+function measure(n) {
+  if (n.type !== 'text') return;
+  mctx.font = `${n.fontWeight} ${n.fontSize}px ${FONT}`;
+  const lines = String(n.text).split('\n');
+  n.w = Math.max(4, ...lines.map(l => mctx.measureText(l || ' ').width));
+  n.h = lines.length * n.fontSize * 1.2;
+}
+function makeNode(type, x, y, w, h, extra = {}) {
+  const count = doc.filter(n => n.type === type).length + 1;
+  const n = { id: newId(), type, name: `${TYPE_NAME[type]} ${count}`, x, y, w, h,
+    fill: type === 'frame' ? '#FFFFFF' : type === 'text' ? '#1F1E1C' : ORANGE,
+    stroke: '#1F1E1C', strokeW: 0, radius: 0, opacity: 1, parent: null };
+  if (type === 'text') Object.assign(n, { text: 'Text', fontSize: 32, fontWeight: 600 });
+  Object.assign(n, extra);
+  if (type === 'text') measure(n);
+  return n;
+}
+function renderList() {
+  const out = [];
+  for (const n of doc) if (!n.parent) { out.push(n); if (n.type === 'frame') for (const c of doc) if (c.parent === n.id) out.push(c); }
+  return out;
+}
+const childrenOf = f => doc.filter(c => c.parent === f.id);
+function topFrameAt(wx, wy, exclude) {
+  for (let i = doc.length - 1; i >= 0; i--) { const n = doc[i];
+    if (n.type === 'frame' && n.id !== exclude && wx >= n.x && wx <= n.x + n.w && wy >= n.y && wy <= n.y + n.h) return n; }
+  return null;
+}
+
+/* ---------- history + autosave ---------- */
+let hist = [], hi = -1;
+function snapshot() { return JSON.stringify(doc); }
+function commit() {
+  hist = hist.slice(0, hi + 1); hist.push(snapshot()); if (hist.length > 120) hist.shift(); hi = hist.length - 1;
+  try { localStorage.setItem('airshape-design', JSON.stringify({ name: $('#fname').value, doc })); } catch {}
+  refreshAll();
+}
+function restore(s) { doc = JSON.parse(s); sel = new Set([...sel].filter(id => get(id))); refreshAll(); }
+function undo() { if (hi > 0) { hi--; restore(hist[hi]); } }
+function redo() { if (hi < hist.length - 1) { hi++; restore(hist[hi]); } }
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+let docDirty = true, ovDirty = true;
+const dirty = () => { docDirty = ovDirty = true; };
+function nodeSVG(n, exporting = false) {
+  if (n._editing && !exporting) return '';
+  let a = `fill="${n.fill}" opacity="${n.opacity}"`;
+  if (n.strokeW > 0) a += ` stroke="${n.stroke}" stroke-width="${n.strokeW}"`;
+  switch (n.type) {
+    case 'frame': case 'rect':
+      return `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${Math.min(n.radius, n.w / 2, n.h / 2)}" ${a}/>`;
+    case 'ellipse': return `<ellipse cx="${n.x + n.w / 2}" cy="${n.y + n.h / 2}" rx="${n.w / 2}" ry="${n.h / 2}" ${a}/>`;
+    case 'triangle': return `<polygon points="${n.x + n.w / 2},${n.y} ${n.x + n.w},${n.y + n.h} ${n.x},${n.y + n.h}" stroke-linejoin="round" ${a}/>`;
+    case 'text': {
+      const lines = String(n.text).split('\n');
+      return `<text x="${n.x}" y="${n.y + n.fontSize}" font-family="${FONT}" font-size="${n.fontSize}" font-weight="${n.fontWeight}" ${a}>` +
+        lines.map((l, i) => `<tspan x="${n.x}" dy="${i ? n.fontSize * 1.2 : 0}">${esc(l) || ' '}</tspan>`).join('') + '</text>';
+    }
+  }
+  return '';
+}
+function docMarkup(filter, exporting) {
+  let defs = '', body = '';
+  for (const n of doc) {
+    if (n.parent || (filter && !filter.has(n.id))) continue;
+    body += nodeSVG(n, exporting);
+    if (n.type === 'frame') {
+      const kids = childrenOf(n).filter(c => !filter || filter.has(c.id));
+      if (kids.length) {
+        defs += `<clipPath id="c_${n.id}"><rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${Math.min(n.radius, n.w / 2, n.h / 2)}"/></clipPath>`;
+        body += `<g clip-path="url(#c_${n.id})">${kids.map(k => nodeSVG(k, exporting)).join('')}</g>`;
+      }
+    }
+  }
+  return { defs, body };
+}
+function renderDoc() {
+  const { defs, body } = docMarkup(null, false);
+  $('#defs').innerHTML = defs;
+  $('#world').innerHTML = body;
+}
+function applyView() {
+  $('#world').setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.z})`);
+  const st = $('#stage').style, g = 20 * view.z;
+  st.backgroundSize = view.z < 0.45 ? '0 0' : `${g}px ${g}px`;
+  st.backgroundPosition = `${view.x}px ${view.y}px`;
+  $('#zoom').textContent = Math.round(view.z * 100) + '%';
+  ovDirty = true;
+}
+function selBBox(ids = sel) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const id of ids) { const n = get(id); if (!n) continue;
+    x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x + n.w); y1 = Math.max(y1, n.y + n.h); }
+  return x0 === Infinity ? null : { x0, y0, x1, y1 };
+}
+const labelW = f => { mctx.font = `500 11px ${FONT}`; return mctx.measureText(f.name).width + 4; };
+function outline(n, cls) {
+  const p = W2S(n.x, n.y), w = n.w * view.z, h = n.h * view.z, st = `fill="none" stroke="#0C8CE9" stroke-width="${cls === 'hov' ? 1.5 : 1}"`;
+  if (n.type === 'ellipse') return `<ellipse cx="${p.x + w / 2}" cy="${p.y + h / 2}" rx="${w / 2}" ry="${h / 2}" ${st}/>`;
+  if (n.type === 'triangle') return `<polygon points="${p.x + w / 2},${p.y} ${p.x + w},${p.y + h} ${p.x},${p.y + h}" ${st}/>`;
+  return `<rect x="${p.x}" y="${p.y}" width="${w}" height="${h}" ${st}/>`;
+}
+const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+function handlePos(b) {
+  const a = W2S(b.x0, b.y0), c = W2S(b.x1, b.y1), mx = (a.x + c.x) / 2, my = (a.y + c.y) / 2;
+  return { nw: [a.x, a.y], n: [mx, a.y], ne: [c.x, a.y], e: [c.x, my], se: [c.x, c.y], s: [mx, c.y], sw: [a.x, c.y], w: [a.x, my] };
+}
+function renderOverlay() {
+  let s = '';
+  for (const f of doc) if (f.type === 'frame' && !f.parent) { const p = W2S(f.x, f.y); s += `<text class="fl ${sel.has(f.id) ? 'on' : ''}" x="${p.x}" y="${p.y - 6}">${esc(f.name)}</text>`; }
+  const hov = new Set(Object.values(hoverOf).filter(Boolean));
+  for (const id of hov) if (!sel.has(id)) { const n = get(id); if (n) s += outline(n, 'hov'); }
+  for (const id of sel) { const n = get(id); if (n) s += outline(n, 'sel'); }
+  const b = selBBox();
+  if (b && !Object.values(ptr).some(p => p.mode === 'draw' && false)) {
+    const a = W2S(b.x0, b.y0), c = W2S(b.x1, b.y1);
+    if (sel.size > 1) s += `<rect x="${a.x}" y="${a.y}" width="${c.x - a.x}" height="${c.y - a.y}" fill="none" stroke="#0C8CE9" stroke-width="1"/>`;
+    const hp = handlePos(b);
+    for (const k of HANDLES) { const [x, y] = hp[k]; s += `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="1.5" fill="#fff" stroke="#0C8CE9" stroke-width="1.2"/>`; }
+    const label = `${Math.round(b.x1 - b.x0)} × ${Math.round(b.y1 - b.y0)}`;
+    mctx.font = `600 11px ${FONT}`; const lw = mctx.measureText(label).width + 12, cx = (a.x + c.x) / 2;
+    s += `<rect x="${cx - lw / 2}" y="${c.y + 8}" width="${lw}" height="18" rx="4" fill="#0C8CE9"/><text x="${cx}" y="${c.y + 20.5}" text-anchor="middle" fill="#fff" font-family="${FONT}" font-size="11" font-weight="600">${label}</text>`;
+  }
+  for (const p of Object.values(ptr)) if (p.mode === 'marquee') {
+    const a = W2S(Math.min(p.a.x, p.b.x), Math.min(p.a.y, p.b.y)), c = W2S(Math.max(p.a.x, p.b.x), Math.max(p.a.y, p.b.y));
+    s += `<rect x="${a.x}" y="${a.y}" width="${c.x - a.x}" height="${c.y - a.y}" fill="rgba(12,140,233,.08)" stroke="#0C8CE9" stroke-width="1"/>`;
+  }
+  $('#ov').innerHTML = s;
+  if (editing) placeEditor();
+}
+
+/* ---------- layers panel ---------- */
+function renderLayers() {
+  let h = '';
+  const row = (n, child) => `<div class="layer ${child ? 'child' : ''} ${n.type === 'frame' ? 'frame' : ''} ${sel.has(n.id) ? 'on' : ''}" data-id="${n.id}">${svgI(n.type)}<span class="nm">${esc(n.name)}</span></div>`;
+  const tops = doc.filter(n => !n.parent).reverse();
+  for (const n of tops) { h += row(n, false); if (n.type === 'frame') for (const c of childrenOf(n).reverse()) h += row(c, true); }
+  $('#layers').innerHTML = h || '<div class="muted" style="padding:6px 10px">No layers yet. Draw something.</div>';
+}
+$('#layers').addEventListener('click', e => {
+  const r = e.target.closest('.layer'); if (!r) return;
+  const id = r.dataset.id;
+  if (e.shiftKey) { sel.has(id) ? sel.delete(id) : sel.add(id); } else sel = new Set([id]);
+  selectionChanged();
+});
+$('#layers').addEventListener('dblclick', e => {
+  const nm = e.target.closest('.layer')?.querySelector('.nm'); if (!nm) return;
+  const n = get(nm.parentElement.dataset.id);
+  nm.contentEditable = 'true'; nm.focus(); document.getSelection().selectAllChildren(nm);
+  const done = () => { nm.contentEditable = 'false'; const v = nm.textContent.trim(); if (v && v !== n.name) { n.name = v; commit(); } else renderLayers(); };
+  nm.addEventListener('blur', done, { once: true });
+  nm.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); nm.blur(); } });
+});
+
+/* ---------- properties panel ---------- */
+const fld = (label, key, val, opt = '') => `<label class="fld"><span>${label}</span><input data-k="${key}" value="${val}" ${opt}></label>`;
+const colorFld = (key, val) => `<label class="fld"><input type="color" data-k="${key}" value="${val}"><input data-k="${key}" data-hex value="${val.toUpperCase().slice(1)}"></label>`;
+const r1 = v => Math.round(v * 10) / 10;
+function alignTarget(ns) {
+  if (ns.length > 1) return selBBox(new Set(ns.map(n => n.id)));
+  const p = ns[0] && get(ns[0].parent); return p ? { x0: p.x, y0: p.y, x1: p.x + p.w, y1: p.y + p.h } : null;
+}
+function buildProps() {
+  const ns = [...sel].map(get).filter(Boolean), P = $('#props');
+  if (!ns.length) {
+    P.innerHTML = `<div class="sec"><div class="lbl">Hand gestures</div><div class="gest">
+      <div>${svgI('move')}<span><b>Select</b><small>Point with your index finger</small></span></div>
+      <div>${svgI('frame')}<span><b>Frame</b><small>Make an L with thumb + index on both hands</small></span></div>
+      <div>${svgI('ellipse')}<span><b>Ellipse</b><small>Thumb + index ring, other fingers up</small></span></div>
+      <div>${svgI('triangle')}<span><b>Triangle</b><small>German “three”: thumb, index, middle</small></span></div>
+      <div>${svgI('rect')}<span><b>Rectangle</b><small>Cross both index fingers into a “+”</small></span></div>
+      <div>${svgI('move')}<span><b>Pinch</b><small>After picking a tool, open your hand, then pinch to draw, select or drag</small></span></div>
+      <div><svg viewBox="0 0 24 24"><path d="M7 4h2v9H7zM9 12.5l3 6.5c.6 1.3 2.6 1 2.6-.5V15h3.6a2 2 0 002-2.3l-.9-5.5A2 2 0 0017.3 5.5H9"/></svg><span><b>Thumbs down</b><small>Undo one step. Show it again to undo more</small></span></div>
+      <div>${svgI('hand')}<span><b>Fist</b><small>Grab and pan the canvas · two fists zoom</small></span></div>
+    </div></div><div class="sec muted">Hold a gesture about half a second to switch tools. After you draw, the tool goes back to Move, like in Figma.<br><br>Mouse works too: V F R O Y T H, Space-drag to pan, Ctrl+scroll to zoom.</div>`;
+    return;
+  }
+  const t = alignTarget(ns);
+  const alg = `<div class="alg">${['l', 'c', 'r', 't', 'm', 'b'].map(k => `<button data-align="${k}" ${t ? '' : 'disabled'}><svg viewBox="0 0 24 24">${ALG[k]}</svg></button>`).join('')}</div>`;
+  let h = '';
+  if (ns.length === 1) {
+    const n = ns[0], par = get(n.parent), ox = par ? par.x : 0, oy = par ? par.y : 0, isT = n.type === 'text';
+    h += `<div class="sec"><div class="head">${svgI(n.type)}<input data-k="name" value="${esc(n.name)}" spellcheck="false"></div></div>`;
+    h += `<div class="sec">${alg}</div>`;
+    h += `<div class="sec"><div class="lbl">Layout</div><div class="grid2">${fld('X', 'x', r1(n.x - ox))}${fld('Y', 'y', r1(n.y - oy))}${fld('W', 'w', r1(n.w), isT ? 'disabled' : '')}${fld('H', 'h', r1(n.h), isT ? 'disabled' : '')}</div>` +
+      ((n.type === 'rect' || n.type === 'frame') ? `<div class="grid2 mt">${fld('◜', 'radius', n.radius)}${fld('%', 'opacity', Math.round(n.opacity * 100))}</div>` : `<div class="grid2 mt">${fld('%', 'opacity', Math.round(n.opacity * 100))}</div>`) + `</div>`;
+    if (isT) h += `<div class="sec"><div class="lbl">Text</div><textarea class="ta" data-k="text">${esc(n.text)}</textarea><div class="grid2 mt">${fld('Size', 'fontSize', n.fontSize)}<label class="fld"><span>Wt</span><select data-k="fontWeight">${[300, 400, 500, 600, 700, 800].map(w => `<option ${w == n.fontWeight ? 'selected' : ''}>${w}</option>`).join('')}</select></label></div></div>`;
+    h += `<div class="sec"><div class="lbl">Fill</div>${colorFld('fill', n.fill)}</div>`;
+    h += `<div class="sec"><div class="lbl">Stroke</div><div class="grid2">${colorFld('stroke', n.stroke)}${fld('W', 'strokeW', n.strokeW)}</div></div>`;
+  } else {
+    h += `<div class="sec"><div class="lbl">${ns.length} layers selected</div>${alg}</div>`;
+    h += `<div class="sec"><div class="lbl">Fill</div>${colorFld('fill', ns[0].fill)}</div>`;
+  }
+  h += `<div class="sec"><div class="acts"><button class="btn" data-act="fwd">Bring forward</button><button class="btn" data-act="back">Send back</button><button class="btn" data-act="dup">Duplicate</button><button class="btn del" data-act="del">Delete</button></div></div>`;
+  P.innerHTML = h;
+}
+function refreshProps() { if (!$('#props').contains(document.activeElement)) buildProps(); }
+function setProp(k, raw, live) {
+  const ns = [...sel].map(get).filter(Boolean); if (!ns.length) return;
+  for (const n of ns) {
+    const par = get(n.parent);
+    let v = raw;
+    if (k === 'fill' || k === 'stroke') { v = raw.startsWith('#') ? raw : '#' + raw; if (!/^#[0-9a-f]{6}$/i.test(v)) return; }
+    else if (k === 'name' || k === 'text') {}
+    else { v = parseFloat(raw); if (isNaN(v)) return; }
+    if (k === 'x' || k === 'y') { const nv = v + (par ? (k === 'x' ? par.x : par.y) : 0), d = nv - n[k]; n[k] = nv; if (n.type === 'frame') childrenOf(n).forEach(c => c[k] += d); }
+    else if (k === 'w' || k === 'h') n[k] = Math.max(1, v);
+    else if (k === 'opacity') n.opacity = clamp(v / 100, 0, 1);
+    else if (k === 'radius' || k === 'strokeW') n[k] = Math.max(0, v);
+    else if (k === 'fontSize') { n.fontSize = clamp(v, 1, 1000); measure(n); }
+    else if (k === 'fontWeight') { n.fontWeight = v; measure(n); }
+    else if (k === 'text') { n.text = v; measure(n); }
+    else n[k] = v;
+  }
+  dirty();
+  if (!live) commit();
+}
+$('#props').addEventListener('input', e => {
+  const k = e.target.dataset.k; if (!k) return;
+  if (e.target.type === 'color') { const hx = e.target.parentElement.querySelector('[data-hex]'); if (hx) hx.value = e.target.value.slice(1).toUpperCase(); setProp(k, e.target.value, true); }
+  else if (k === 'text') setProp(k, e.target.value, true);
+});
+$('#props').addEventListener('change', e => { const k = e.target.dataset.k; if (k) setProp(k, e.target.value, false); });
+$('#props').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.target.blur(); });
+$('#props').addEventListener('click', e => {
+  const al = e.target.closest('[data-align]'); if (al) return align(al.dataset.align);
+  const ac = e.target.closest('[data-act]'); if (!ac) return;
+  ({ fwd: () => reorder(1), back: () => reorder(-1), dup: duplicate, del: deleteSel })[ac.dataset.act]();
+});
+
+function refreshAll() { dirty(); renderLayers(); refreshProps(); }
+function selectionChanged() { ovDirty = true; renderLayers(); buildProps(); }
+
+/* =========================================================
+   EDIT OPERATIONS
+   ========================================================= */
+function deleteSel() {
+  if (!sel.size) return;
+  const kill = new Set(sel);
+  for (const id of sel) { const n = get(id); if (n?.type === 'frame') childrenOf(n).forEach(c => kill.add(c.id)); }
+  doc = doc.filter(n => !kill.has(n.id)); sel.clear(); commit();
+}
+function duplicate() {
+  if (!sel.size) return;
+  const out = new Set(), add = [];
+  for (const id of sel) {
+    const n = get(id); if (!n || (n.parent && sel.has(n.parent))) continue;
+    const c = { ...structuredClone(n), id: newId(), x: n.x + 20, y: n.y + 20 }; add.push(c); out.add(c.id);
+    if (n.type === 'frame') for (const k of childrenOf(n)) add.push({ ...structuredClone(k), id: newId(), parent: c.id, x: k.x + 20, y: k.y + 20 });
+  }
+  doc.push(...add); sel = out; commit();
+}
+function reorder(dir) {
+  for (const id of (dir > 0 ? [...sel].reverse() : [...sel])) {
+    const n = get(id); if (!n) continue;
+    const sib = doc.filter(m => m.parent === n.parent), i = sib.indexOf(n), j = i + dir;
+    if (j < 0 || j >= sib.length) continue;
+    const a = doc.indexOf(n), b = doc.indexOf(sib[j]); [doc[a], doc[b]] = [doc[b], doc[a]];
+  }
+  commit();
+}
+function align(k) {
+  const ns = [...sel].map(get).filter(Boolean), t = alignTarget(ns); if (!t) return;
+  for (const n of ns) {
+    let dx = 0, dy = 0;
+    if (k === 'l') dx = t.x0 - n.x; if (k === 'r') dx = t.x1 - n.w - n.x; if (k === 'c') dx = (t.x0 + t.x1 - n.w) / 2 - n.x;
+    if (k === 't') dy = t.y0 - n.y; if (k === 'b') dy = t.y1 - n.h - n.y; if (k === 'm') dy = (t.y0 + t.y1 - n.h) / 2 - n.y;
+    moveNode(n, Math.round(dx), Math.round(dy));
+  }
+  commit();
+}
+function moveNode(n, dx, dy) { n.x += dx; n.y += dy; if (n.type === 'frame') childrenOf(n).forEach(c => { c.x += dx; c.y += dy; }); }
+const roundNode = n => { n.x = Math.round(n.x); n.y = Math.round(n.y); if (n.type !== 'text') { n.w = Math.max(1, Math.round(n.w)); n.h = Math.max(1, Math.round(n.h)); } };
+
+/* =========================================================
+   POINTER LOGIC (shared by mouse and hands)
+   ========================================================= */
+const ptr = {};       // pointer id -> active operation
+const hoverOf = {};   // pointer id -> hovered node id
+function hitNode(n, wx, wy, t) {
+  if (n.type === 'ellipse') { const rx = n.w / 2 + t, ry = n.h / 2 + t, dx = wx - (n.x + n.w / 2), dy = wy - (n.y + n.h / 2); return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1; }
+  return wx >= n.x - t && wx <= n.x + n.w + t && wy >= n.y - t && wy <= n.y + n.h + t;
+}
+function hitTest(sx, sy, tolPx) {
+  const w = S2W(sx, sy), t = tolPx / view.z;
+  for (let i = doc.length - 1; i >= 0; i--) { const f = doc[i];          // frame name labels
+    if (f.type !== 'frame' || f.parent) continue;
+    const p = W2S(f.x, f.y); if (sx >= p.x - 2 && sx <= p.x + labelW(f) && sy >= p.y - 20 && sy <= p.y) return f; }
+  const list = renderList();
+  for (let i = list.length - 1; i >= 0; i--) {
+    const n = list[i];
+    if (n.parent) { const f = get(n.parent); if (!hitNode(f, w.x, w.y, 0)) continue; }
+    if (n.type === 'frame' && childrenOf(n).length) continue;           // like Figma: pick frames with children by their label
+    if (hitNode(n, w.x, w.y, t)) return n;
+  }
+  return null;
+}
+function handleAt(sx, sy, tol) {
+  const b = selBBox(); if (!b) return null;
+  const hp = handlePos(b);
+  for (const k of HANDLES) { const [x, y] = hp[k]; if (Math.abs(sx - x) <= tol && Math.abs(sy - y) <= tol) return k; }
+  return null;
+}
+function pDown(id, sx, sy, o = {}) {
+  const w = S2W(sx, sy), isHand = id[0] === 'h';
+  if (editing) finishEdit();
+  if (o.pan || tool === 'hand') { ptr[id] = { mode: 'pan', lx: sx, ly: sy }; return; }
+  if (DRAW.includes(tool)) {
+    const par = tool === 'frame' ? null : topFrameAt(w.x, w.y);
+    const n = makeNode(tool, w.x, w.y, 0, 0, { parent: par ? par.id : null });
+    doc.push(n); sel = new Set([n.id]);
+    ptr[id] = { mode: 'draw', n, ax: w.x, ay: w.y, sx, sy }; selectionChanged(); dirty(); return;
+  }
+  if (tool === 'text') {
+    const par = topFrameAt(w.x, w.y);
+    const n = makeNode('text', Math.round(w.x), Math.round(w.y - 19), 0, 0, { parent: par ? par.id : null });
+    doc.push(n); sel = new Set([n.id]); setTool('move'); commit();
+    if (!isHand) startEdit(n);
+    ptr[id] = { mode: 'none' }; return;
+  }
+  const h = handleAt(sx, sy, isHand ? 18 : 7);
+  if (h) { ptr[id] = { mode: 'resize', h, b0: selBBox(), orig: [...sel].map(get).filter(Boolean).map(n => ({ n, x: n.x, y: n.y, w: n.w, h: n.h, fs: n.fontSize })) }; return; }
+  const n = hitTest(sx, sy, isHand ? 12 : 4);
+  if (n) {
+    if (o.shift) { sel.has(n.id) ? sel.delete(n.id) : sel.add(n.id); }
+    else if (!sel.has(n.id)) sel = new Set([n.id]);
+    const movers = new Set();
+    for (const sid of sel) { const m = get(sid); if (!m) continue; movers.add(m); if (m.type === 'frame') childrenOf(m).forEach(c => movers.add(c)); }
+    ptr[id] = { mode: 'move', a: w, moved: false, orig: [...movers].map(m => ({ n: m, x: m.x, y: m.y })) };
+  } else {
+    if (!o.shift) sel.clear();
+    ptr[id] = { mode: 'marquee', a: w, b: w, base: new Set(sel) };
+  }
+  selectionChanged();
+}
+function pMove(id, sx, sy, o = {}) {
+  const p = ptr[id], w = S2W(sx, sy);
+  if (!p) {
+    const hv = tool === 'move' ? hitTest(sx, sy, id[0] === 'h' ? 12 : 4)?.id || null : null;
+    if (hoverOf[id] !== hv) { hoverOf[id] = hv; ovDirty = true; }
+    if (id === 'm') {
+      const hd = tool === 'move' && handleAt(sx, sy, 7);
+      $('#stage').className = space ? 'grab' : tool === 'hand' ? 'grab' : tool === 'text' ? 'txt' : DRAW.includes(tool) ? 'cross' : '';
+      $('#stage').style.cursor = hd ? ({ n: 'ns', s: 'ns', e: 'ew', w: 'ew', nw: 'nwse', se: 'nwse', ne: 'nesw', sw: 'nesw' }[hd] + '-resize') : '';
+    }
+    return;
+  }
+  hoverOf[id] = null;
+  if (p.mode === 'pan') { view.x += sx - p.lx; view.y += sy - p.ly; p.lx = sx; p.ly = sy; applyView(); return; }
+  if (p.mode === 'draw') {
+    let dx = w.x - p.ax, dy = w.y - p.ay;
+    if (o.shift) { const m = Math.max(Math.abs(dx), Math.abs(dy)); dx = Math.sign(dx || 1) * m; dy = Math.sign(dy || 1) * m; }
+    Object.assign(p.n, { x: Math.min(p.ax, p.ax + dx), y: Math.min(p.ay, p.ay + dy), w: Math.abs(dx), h: Math.abs(dy) });
+    dirty(); return;
+  }
+  if (p.mode === 'move') {
+    const dx = w.x - p.a.x, dy = w.y - p.a.y;
+    if (Math.hypot(dx * view.z, dy * view.z) > 2) p.moved = true;
+    if (p.moved) { for (const q of p.orig) { q.n.x = Math.round(q.x + dx); q.n.y = Math.round(q.y + dy); } dirty(); }
+    return;
+  }
+  if (p.mode === 'resize') {
+    const b = p.b0; let x0 = b.x0, y0 = b.y0, x1 = b.x1, y1 = b.y1;
+    if (p.h.includes('w')) x0 = w.x; if (p.h.includes('e')) x1 = w.x;
+    if (p.h.includes('n')) y0 = w.y; if (p.h.includes('s')) y1 = w.y;
+    if (o.shift && p.h.length === 2) { const r = (b.x1 - b.x0) / (b.y1 - b.y0), nw = Math.abs(x1 - x0), nh = Math.abs(y1 - y0);
+      if (nw / nh > r) { const H = nw / r; if (p.h.includes('n')) y0 = y1 - H; else y1 = y0 + H; } else { const W = nh * r; if (p.h.includes('w')) x0 = x1 - W; else x1 = x0 + W; } }
+    const X0 = Math.min(x0, x1), Y0 = Math.min(y0, y1), W = Math.max(1, Math.abs(x1 - x0)), H = Math.max(1, Math.abs(y1 - y0));
+    const sxr = W / Math.max(1e-6, b.x1 - b.x0), syr = H / Math.max(1e-6, b.y1 - b.y0);
+    for (const q of p.orig) {
+      q.n.x = X0 + (q.x - b.x0) * sxr; q.n.y = Y0 + (q.y - b.y0) * syr;
+      if (q.n.type === 'text') { q.n.fontSize = Math.max(1, Math.round(q.fs * syr)); measure(q.n); }
+      else { q.n.w = Math.max(1, q.w * sxr); q.n.h = Math.max(1, q.h * syr); }
+    }
+    dirty(); return;
+  }
+  if (p.mode === 'marquee') {
+    p.b = w;
+    const x0 = Math.min(p.a.x, w.x), y0 = Math.min(p.a.y, w.y), x1 = Math.max(p.a.x, w.x), y1 = Math.max(p.a.y, w.y);
+    const s = new Set(p.base);
+    for (const n of doc) {
+      const hit = n.x < x1 && n.x + n.w > x0 && n.y < y1 && n.y + n.h > y0;
+      const inside = n.x >= x0 && n.x + n.w <= x1 && n.y >= y0 && n.y + n.h <= y1;
+      if (n.type === 'frame' ? inside : (hit && !(n.parent && s.has(n.parent)))) s.add(n.id);
+    }
+    sel = s; ovDirty = true; renderLayers(); return;
+  }
+}
+function pUp(id) {
+  const p = ptr[id]; delete ptr[id]; if (!p) return;
+  if (p.mode === 'draw') {
+    const n = p.n;
+    if (n.w * view.z < 4 && n.h * view.z < 4) { n.w = n.type === 'frame' ? 320 : 100; n.h = n.type === 'frame' ? 240 : 100; }
+    roundNode(n);
+    if (n.type === 'frame') for (const c of doc) if (!c.parent && c !== n && c.type !== 'frame' && c.x >= n.x && c.y >= n.y && c.x + c.w <= n.x + n.w && c.y + c.h <= n.y + n.h) c.parent = n.id;
+    setTool('move'); commit(); return;
+  }
+  if (p.mode === 'move' && p.moved) {
+    for (const q of p.orig) {
+      const n = q.n; if (n.type === 'frame' || !sel.has(n.id)) continue;
+      const f = topFrameAt(n.x + n.w / 2, n.y + n.h / 2, n.id), np = f ? f.id : null;
+      if (np !== n.parent) { n.parent = np; doc.splice(doc.indexOf(n), 1); doc.push(n); }
+    }
+    commit(); return;
+  }
+  if (p.mode === 'resize') { p.orig.forEach(q => roundNode(q.n)); commit(); return; }
+  if (p.mode === 'marquee') { selectionChanged(); return; }
+  ovDirty = true;
+}
+function cancelPtr(id) { if (ptr[id]) pUp(id); }
+
+/* ---------- text editing ---------- */
+let editing = null;
+function startEdit(n) {
+  if (n.type !== 'text') return;
+  const ta = document.createElement('textarea'); ta.className = 'te'; ta.value = n.text; ta.spellcheck = false;
+  document.body.appendChild(ta); n._editing = true; editing = { n, ta }; placeEditor(); dirty();
+  ta.focus(); ta.select();
+  ta.addEventListener('input', () => { n.text = ta.value; measure(n); placeEditor(); ovDirty = true; });
+  ta.addEventListener('keydown', e => { if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) { e.preventDefault(); finishEdit(); } e.stopPropagation(); });
+  ta.addEventListener('blur', () => finishEdit());
+}
+function placeEditor() {
+  const { n, ta } = editing, p = W2S(n.x, n.y), z = view.z;
+  Object.assign(ta.style, { left: p.x + 'px', top: p.y + 'px', width: (n.w * z + 8) + 'px', height: (n.h * z + 2) + 'px',
+    font: `${n.fontWeight} ${n.fontSize * z}px ${FONT}`, color: n.fill, lineHeight: '1.2' });
+}
+function finishEdit() {
+  if (!editing) return; const { n, ta } = editing; editing = null;
+  delete n._editing; ta.remove();
+  if (!n.text.trim()) { doc = doc.filter(m => m !== n); sel.delete(n.id); }
+  commit();
+}
+
+/* =========================================================
+   TOOLS
+   ========================================================= */
+const TOOLS = [
+  ['move', 'Move', 'V', ''], ['frame', 'Frame', 'F', 'two L-hands'], ['rect', 'Rectangle', 'R', '“+” index fingers'],
+  ['ellipse', 'Ellipse', 'O', 'thumb + index ring'], ['triangle', 'Triangle', 'Y', 'German three'], ['text', 'Text', 'T', ''], ['hand', 'Hand', 'H', 'fist']
+];
+$('#toolbar').innerHTML = TOOLS.map(([k, n, key, g], i) =>
+  (i === 5 ? '<div class="sep"></div>' : '') +
+  `<button class="tb" data-tool="${k}">${svgI(k)}<i class="bar"></i><span class="tip">${n}<kbd>${key}</kbd>${g ? ` · ✋ ${g}` : ''}</span></button>`).join('');
+$('#toolbar').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('.tb').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
+  $('#stage').className = t === 'hand' ? 'grab' : t === 'text' ? 'txt' : DRAW.includes(t) ? 'cross' : '';
+  hands.forEach(h => h.cursorEl.classList.toggle('tool', DRAW.includes(t)));
+  updateHint();
+}
+let toastT;
+function toast(msg, small = false) {
+  const el = $('#toast'); el.textContent = msg; el.className = 'on' + (small ? ' small' : '');
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), small ? 2600 : 800);
+}
+function updateHint() {
+  const el = $('#hint');
+  if (!handsOn) { el.classList.remove('on'); return; }
+  el.textContent = locked ? 'Open your hand, then pinch to start' : DRAW.includes(tool) ? `Pinch + drag to draw a ${TYPE_NAME[tool].toLowerCase()}` : tool === 'hand' ? 'Pinch or fist-drag to pan' : 'Pinch to select & move · fist to pan · 👎 undo';
+  el.classList.add('on');
+}
+
+/* =========================================================
+   MOUSE + KEYBOARD
+   ========================================================= */
+const stage = $('#stage');
+let space = false;
+stage.addEventListener('pointerdown', e => {
+  if (e.button === 2) return;
+  stage.setPointerCapture(e.pointerId);
+  pDown('m', e.clientX, e.clientY, { shift: e.shiftKey, pan: e.button === 1 || space });
+  if (ptr.m?.mode === 'pan') stage.className = 'grabbing';
+});
+stage.addEventListener('pointermove', e => pMove('m', e.clientX, e.clientY, { shift: e.shiftKey }));
+stage.addEventListener('pointerup', () => { pUp('m'); if (space || tool === 'hand') stage.className = 'grab'; });
+stage.addEventListener('dblclick', e => { const n = hitTest(e.clientX, e.clientY, 4); if (n?.type === 'text') { sel = new Set([n.id]); selectionChanged(); startEdit(n); } });
+stage.addEventListener('contextmenu', e => e.preventDefault());
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.01));
+  else { view.x -= e.deltaX; view.y -= e.deltaY; applyView(); }
+}, { passive: false });
+function zoomAt(sx, sy, f) {
+  const w = S2W(sx, sy); view.z = clamp(view.z * f, 0.05, 32);
+  view.x = sx - w.x * view.z; view.y = sy - w.y * view.z; applyView();
+}
+function zoomFit(ids) {
+  const b = ids ? selBBox(ids) : selBBox(new Set(doc.map(n => n.id)));
+  const L = 264, R = 274, T = 40, B = 90, aw = innerWidth - L - R, ah = innerHeight - T - B;
+  if (!b) { view.z = 1; view.x = L + aw / 2; view.y = T + ah / 2; applyView(); return; }
+  view.z = clamp(Math.min(aw / (b.x1 - b.x0), ah / (b.y1 - b.y0)) * 0.9, 0.05, 4);
+  view.x = L + aw / 2 - (b.x0 + b.x1) / 2 * view.z; view.y = T + ah / 2 - (b.y0 + b.y1) / 2 * view.z; applyView();
+}
+$('#zoom').addEventListener('click', () => zoomFit());
+addEventListener('keydown', e => {
+  const tg = e.target; if (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable) return;
+  const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+  if (k === ' ') { if (!space) { space = true; stage.className = 'grab'; } e.preventDefault(); return; }
+  if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && k === 'y') { e.preventDefault(); redo(); return; }
+  if (mod && k === 'd') { e.preventDefault(); duplicate(); return; }
+  if (mod && k === 'a') { e.preventDefault(); sel = new Set(doc.filter(n => !n.parent).map(n => n.id)); selectionChanged(); return; }
+  if (mod && (k === '=' || k === '+')) { e.preventDefault(); zoomAt(innerWidth / 2, innerHeight / 2, 1.25); return; }
+  if (mod && k === '-') { e.preventDefault(); zoomAt(innerWidth / 2, innerHeight / 2, 0.8); return; }
+  if (mod && k === '0') { e.preventDefault(); zoomAt(innerWidth / 2, innerHeight / 2, 1 / view.z); return; }
+  if (mod) return;
+  if (e.shiftKey && (k === '!' || e.code === 'Digit1')) { zoomFit(); return; }
+  if (e.shiftKey && (k === '@' || e.code === 'Digit2')) { if (sel.size) zoomFit(sel); return; }
+  if (k === 'delete' || k === 'backspace') { deleteSel(); return; }
+  if (k === 'escape') { sel.clear(); setTool('move'); selectionChanged(); return; }
+  if (k === 'enter' && sel.size === 1) { const n = get([...sel][0]); if (n.type === 'text') startEdit(n); return; }
+  if (k === ']') return reorder(1); if (k === '[') return reorder(-1);
+  if (k.startsWith('arrow') && sel.size) {
+    e.preventDefault(); const d = e.shiftKey ? 10 : 1;
+    for (const id of sel) { const n = get(id); if (n && !(n.parent && sel.has(n.parent))) moveNode(n, k === 'arrowleft' ? -d : k === 'arrowright' ? d : 0, k === 'arrowup' ? -d : k === 'arrowdown' ? d : 0); }
+    commit(); return;
+  }
+  const map = { v: 'move', f: 'frame', a: 'frame', r: 'rect', o: 'ellipse', e: 'ellipse', y: 'triangle', t: 'text', h: 'hand' };
+  if (map[k]) setTool(map[k]);
+  if (k === 'd' && e.altKey) $('#cam').classList.toggle('show');
+});
+addEventListener('keyup', e => { if (e.key === ' ') { space = false; setTool(tool); } });
+$('#fname').addEventListener('change', () => commit());
+
+/* ---------- export ---------- */
+$('#exportBtn').addEventListener('click', e => { e.stopPropagation(); $('#exportMenu').classList.toggle('on'); });
+addEventListener('click', () => { $('#exportMenu').classList.remove('on'); $('#handsMenu').classList.remove('on'); });
+function exportSet() {
+  if (!sel.size) return { ids: null, b: selBBox(new Set(doc.map(n => n.id))) };
+  const ids = new Set(sel);
+  for (const id of sel) { const n = get(id); if (n?.type === 'frame') childrenOf(n).forEach(c => ids.add(c.id)); if (n?.parent && !sel.has(n.parent)) {} }
+  return { ids, b: selBBox(sel) };
+}
+function exportSVG() {
+  const { ids, b } = exportSet(); if (!b) return null;
+  let filt = ids;
+  if (filt) { // allow exporting children whose frame isn't selected
+    const tmp = new Set(filt); for (const id of filt) { const n = get(id); if (n?.parent && !filt.has(n.parent)) { tmp.delete(id); } }
+    const loose = [...filt].filter(id => !tmp.has(id)).map(get);
+    const { defs, body } = docMarkup(tmp, true);
+    const extra = loose.map(n => nodeSVG(n, true)).join('');
+    filt = { defs, body: body + extra };
+  } else filt = docMarkup(null, true);
+  const w = Math.ceil(b.x1 - b.x0), h = Math.ceil(b.y1 - b.y0);
+  return { w, h, svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${b.x0} ${b.y0} ${w} ${h}"><defs>${filt.defs}</defs>${filt.body}</svg>` };
+}
+function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+const baseName = () => ($('#fname').value.trim() || 'design').replace(/[^\w\-]+/g, '_');
+$('#exportMenu').addEventListener('click', e => {
+  const k = e.target.dataset.exp; if (!k) return;
+  if (k === 'json') return download(baseName() + '.json', new Blob([JSON.stringify({ name: $('#fname').value, doc }, null, 1)], { type: 'application/json' }));
+  if (k === 'open') return $('#openFile').click();
+  const r = exportSVG(); if (!r) return toast('Nothing to export', true);
+  if (k === 'svg') return download(baseName() + '.svg', new Blob([r.svg], { type: 'image/svg+xml' }));
+  const img = new Image();
+  img.onload = () => { const c = document.createElement('canvas'); c.width = r.w * 2; c.height = r.h * 2; const x = c.getContext('2d'); x.scale(2, 2); x.drawImage(img, 0, 0); c.toBlob(b => download(baseName() + '.png', b)); };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(r.svg);
+});
+$('#openFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const d = JSON.parse(await f.text()); doc = d.doc || d; $('#fname').value = d.name || f.name.replace(/\.json$/, ''); sel.clear(); commit(); zoomFit(); }
+  catch { toast('Could not open that file', true); }
+  e.target.value = '';
+});
+
+/* =========================================================
+   HANDS (webcam → white 3D hands + gestures)
+   ========================================================= */
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.domElement.id = 'hands';
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.6;
+const CAM_Z = 12, FOV = 45, TANH = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+const camera = new THREE.PerspectiveCamera(FOV, innerWidth / innerHeight, 0.1, 100); camera.position.z = CAM_Z;
+scene.add(new THREE.HemisphereLight(0xffffff, 0xe0dbd2, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5); sun.position.set(-3, 6, 10); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 40 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; scene.add(sun);
+const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.11 }));
+shadowPlane.position.z = -1.6; shadowPlane.receiveShadow = true; scene.add(shadowPlane);
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); ovDirty = true; });
+
+const GAIN = 1.35, HS = 0.6;        // reach the whole screen with less arm movement; hands drawn smaller
+const handMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+const sphereGeo = new THREE.SphereGeometry(1, 20, 14), cylGeo = new THREE.CylinderGeometry(1, 1, 1, 14, 1, true);
+const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
+const JR = [0.12, 0.1,0.095,0.085,0.078, 0.095,0.085,0.077,0.07, 0.095,0.086,0.078,0.071, 0.09,0.082,0.074,0.068, 0.085,0.075,0.068,0.062];
+const PALM = [0, 1, 5, 9, 13, 17], UP = new THREE.Vector3(0, 1, 0);
+let imgW = 16, imgH = 9;
+const v3 = new THREE.Vector3();
+const toScreen = p => { v3.copy(p).project(camera); return { x: (v3.x + 1) / 2 * innerWidth, y: (1 - v3.y) / 2 * innerHeight }; };
+
+class Hand {
+  constructor(i) {
+    this.id = 'h' + i;
+    this.group = new THREE.Group(); this.group.visible = false; scene.add(this.group);
+    this.joints = JR.map(() => { const m = new THREE.Mesh(sphereGeo, handMat); m.castShadow = true; this.group.add(m); return m; });
+    this.bones = CONN.map(() => { const m = new THREE.Mesh(cylGeo, handMat); m.castShadow = true; this.group.add(m); return m; });
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(21), 3));
+    const idx = []; for (let k = 0; k < 6; k++) idx.push(6, k, (k + 1) % 6); pg.setIndex(idx);
+    this.palmMesh = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.55, side: THREE.DoubleSide }));
+    this.palmMesh.castShadow = true; this.group.add(this.palmMesh);
+    this.cursorEl = document.createElement('div'); this.cursorEl.className = 'hc'; document.body.appendChild(this.cursorEl);
+    this.sm = new Float32Array(63); this.raw = JR.map(() => new THREE.Vector3()); this.pts = JR.map(() => new THREE.Vector3());
+    this.anchor = new THREE.Vector3(); this.visible = false; this.lastSeen = 0; this.fresh = true;
+    this.pinching = false; this.pinchCnt = 0; this.fist = false; this.fistCnt = 0; this.fistOff = 0;
+    this.events = []; this.g = {}; this.screen = { x: 0, y: 0 }; this.palmScreen = { x: 0, y: 0 };
+  }
+  update(lm, now) {
+    const s = this.sm;
+    this.fresh = !this.visible || now - this.lastSeen > 300;
+    if (this.fresh) for (let i = 0; i < 21; i++) { s[i*3] = lm[i].x; s[i*3+1] = lm[i].y; s[i*3+2] = lm[i].z; }
+    else {
+      const a = Math.min(0.85, 0.45 + Math.hypot(lm[0].x - s[0], lm[0].y - s[1]) * 10);
+      for (let i = 0; i < 21; i++) { s[i*3] += (lm[i].x - s[i*3]) * a; s[i*3+1] += (lm[i].y - s[i*3+1]) * a; s[i*3+2] += (lm[i].z - s[i*3+2]) * a; }
+    }
+    this.lastSeen = now;
+    if (!this.visible) { this.visible = true; this.group.visible = true; this.cursorEl.classList.add('on'); }
+    this.compute(); this.build(); this.classify();
+  }
+  compute() {
+    const s = this.sm, R = this.raw, P = this.pts;
+    for (let i = 0; i < 21; i++) R[i].set((0.5 - s[i*3]) * imgW, (0.5 - s[i*3+1]) * imgH, -s[i*3+2] * imgW);
+    this.palmRaw = R[0].distanceTo(R[9]);
+    const A = new THREE.Vector3().addVectors(R[4], R[8]).multiplyScalar(0.5);
+    const T = new THREE.Vector3(A.x * GAIN, A.y * GAIN, 0.4);
+    if (this.fresh) this.anchor.copy(T);
+    else { const sp = this.anchor.distanceTo(T); this.anchor.lerp(T, clamp(0.2 + sp * 1.3, 0.2, 0.92)); }
+    for (let i = 0; i < 21; i++) P[i].copy(R[i]).sub(A).multiplyScalar(HS).add(this.anchor);
+    this.palm = this.palmRaw * HS;
+    this.screen = toScreen(this.anchor);
+    const pc = new THREE.Vector3(); PALM.forEach(j => pc.add(P[j])); pc.divideScalar(6);
+    this.palmScreen = toScreen(pc);
+  }
+  build() {
+    const P = this.pts, pl = this.palm, d = new THREE.Vector3();
+    this.joints.forEach((m, i) => { m.position.copy(P[i]); m.scale.setScalar(JR[i] * pl); });
+    CONN.forEach(([a, b], k) => { const m = this.bones[k]; d.subVectors(P[b], P[a]); const len = d.length() || 1e-4;
+      m.position.addVectors(P[a], P[b]).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(UP, d.divideScalar(len));
+      const r = Math.min(JR[a], JR[b]) * pl * 0.93; m.scale.set(r, len, r); });
+    const pos = this.palmMesh.geometry.attributes.position, c = new THREE.Vector3();
+    PALM.forEach((j, i) => { pos.setXYZ(i, P[j].x, P[j].y, P[j].z); c.add(P[j]); }); c.divideScalar(6);
+    pos.setXYZ(6, c.x, c.y, c.z); pos.needsUpdate = true; this.palmMesh.geometry.computeVertexNormals(); this.palmMesh.geometry.computeBoundingSphere();
+  }
+  classify() {
+    const P = this.raw, pl = this.palmRaw, D = (i, j) => P[i].distanceTo(P[j]) / pl;
+    const ext = [8, 12, 16, 20].map((t, k) => D(0, t) > D(0, [6, 10, 14, 18][k]) * 1.12);
+    const cur = [8, 12, 16, 20].map((t, k) => D(0, t) < D(0, [6, 10, 14, 18][k]) * 1.02);
+    const thumbExt = D(4, 9) > 0.78 && D(0, 4) > D(0, 3) * 1.04;
+    const pinch = D(4, 8), ok = pinch < 0.38 && ext[1] && ext[2] && ext[3];
+    const td = new THREE.Vector3().subVectors(P[4], P[2]).normalize(), id = new THREE.Vector3().subVectors(P[8], P[5]).normalize();
+    const pc = new THREE.Vector3(); PALM.forEach(j => pc.add(P[j])); pc.divideScalar(6);
+    this.g = { ok, three: thumbExt && ext[0] && ext[1] && cur[2] && cur[3],
+      L: thumbExt && ext[0] && cur[1] && cur[2] && cur[3] && Math.abs(td.dot(id)) < 0.64,
+      pointer: ext[0] && cur[1] && cur[2] && cur[3], idDir: id, pc };
+    const allCur = cur[0] && cur[1] && cur[2] && cur[3];
+    this.g.down = allCur && thumbExt && td.y < -0.6;                    // thumbs down
+    this.g.point = this.g.pointer && !thumbExt;                         // index only → Move tool
+    this.g.open = ext.filter(Boolean).length >= 3 && pinch > 0.6;        // bare open hand
+    const fistRaw = allCur && D(0, 8) < 1.15 && !(thumbExt && Math.abs(td.y) > 0.6);
+    this.events.length = 0;
+    if (!this.pinching) {
+      if (pinch < 0.32 && !ok && !this.fist && D(0, 8) > 1.05) { if (++this.pinchCnt >= 2) { this.pinching = true; this.events.push('pinchStart'); } }
+      else this.pinchCnt = 0;
+    } else if (pinch > 0.55) { this.pinching = false; this.pinchCnt = 0; this.events.push('pinchEnd'); }
+    if (!this.fist) {
+      if (fistRaw && !this.pinching) { if (++this.fistCnt >= 3) { this.fist = true; this.fistOff = 0; this.events.push('fistStart'); } } else this.fistCnt = 0;
+    } else if (!fistRaw) { if (++this.fistOff >= 3) { this.fist = false; this.fistCnt = 0; this.events.push('fistEnd'); } } else this.fistOff = 0;
+  }
+  hide() {
+    this.visible = false; this.group.visible = false; this.cursorEl.className = 'hc' + (DRAW.includes(tool) ? ' tool' : '');
+    this.pinching = this.fist = false; this.pinchCnt = this.fistCnt = 0;
+  }
+}
+const hands = [new Hand(0), new Hand(1)];
+
+function handFrame(h) {
+  for (const ev of h.events) {
+    if (ev === 'pinchStart') {
+      if (locked) { ptrUi.add(h.id); continue; }             // ignore until hands are opened
+      const el = document.elementFromPoint(h.screen.x, h.screen.y);
+      if (el && el.closest('.ui')) {                     // pinch on toolbar / panels = click
+        const b = el.closest('button,.layer,[data-tool],[data-align],[data-act],[data-exp]'); if (b) b.click();
+        ptrUi.add(h.id); continue;
+      }
+      pDown(h.id, h.screen.x, h.screen.y);
+    } else if (ev === 'pinchEnd') { if (ptrUi.has(h.id)) ptrUi.delete(h.id); else pUp(h.id); }
+  }
+  if (!ptrUi.has(h.id)) pMove(h.id, h.screen.x, h.screen.y);
+  h.cursorEl.style.transform = `translate(${(h.fist ? h.palmScreen : h.screen).x}px,${(h.fist ? h.palmScreen : h.screen).y}px)`;
+  h.cursorEl.classList.toggle('pinch', h.pinching); h.cursorEl.classList.toggle('fist', h.fist);
+}
+const ptrUi = new Set();
+let fistState = null;
+function setLocked(v) {
+  if (locked === v) return; locked = v;
+  hands.forEach(h => h.cursorEl.classList.toggle('lock', v)); updateHint();
+}
+function fists() {
+  if (locked) { fistState = null; return; }
+  const fs = hands.filter(h => h.visible && h.fist && !ptr[h.id]);
+  if (fs.length === 2) {
+    const a = fs[0].palmScreen, b = fs[1].palmScreen, d = Math.hypot(a.x - b.x, a.y - b.y), m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if (!fistState || fistState.n !== 2) fistState = { n: 2, d0: Math.max(40, d), z0: view.z, w: S2W(m.x, m.y) };
+    view.z = clamp(fistState.z0 * d / fistState.d0, 0.05, 16);
+    view.x = m.x - fistState.w.x * view.z; view.y = m.y - fistState.w.y * view.z; applyView();
+  } else if (fs.length === 1) {
+    const p = fs[0].palmScreen;
+    if (!fistState || fistState.n !== 1 || fistState.h !== fs[0]) fistState = { n: 1, h: fs[0], x: p.x, y: p.y };
+    view.x += p.x - fistState.x; view.y += p.y - fistState.y; fistState.x = p.x; fistState.y = p.y; applyView();
+  } else fistState = null;
+}
+
+/* ---- tool gestures (hold ~0.45 s) ---- */
+const GT = { frame: 'frame', circle: 'ellipse', triangle: 'triangle', rect: 'rect', move: 'move' };
+let locked = false;   // after a gesture fires, nothing acts until hands are shown open
+let holdCand = null, holdT = 0, holdFired = false;
+function segDist2(a1, a2, b1, b2) {
+  const pd = (p, a, b) => { const abx = b.x - a.x, aby = b.y - a.y, t = clamp(((p.x - a.x) * abx + (p.y - a.y) * aby) / (abx * abx + aby * aby || 1), 0, 1); return Math.hypot(a.x + abx * t - p.x, a.y + aby * t - p.y); };
+  let m = Infinity;
+  for (let i = 0; i <= 10; i++) { const t = i / 10;
+    m = Math.min(m, pd({ x: a1.x + (a2.x - a1.x) * t, y: a1.y + (a2.y - a1.y) * t }, b1, b2), pd({ x: b1.x + (b2.x - b1.x) * t, y: b1.y + (b2.y - b1.y) * t }, a1, a2)); }
+  return m;
+}
+function detectTool(dt) {
+  const vis = hands.filter(h => h.visible);
+  const busy = vis.some(h => ptr[h.id] || h.pinching || h.fist);
+  let cand = null;
+  if (!busy) {
+    if (vis.length === 2) {
+      const [A, B] = vis, pl = (A.palmRaw + B.palmRaw) / 2;
+      if (A.g.pointer && B.g.pointer && Math.abs(A.g.idDir.dot(B.g.idDir)) < 0.5 && segDist2(A.raw[5], A.raw[8], B.raw[5], B.raw[8]) < pl * 0.45) cand = 'rect';
+      else if (A.g.L && B.g.L && A.g.pc.distanceTo(B.g.pc) > pl * 1.6) cand = 'frame';
+    }
+    if (!cand) for (const h of vis) { if (h.g.down) { cand = 'undo'; break; } if (h.g.ok) { cand = 'circle'; break; } if (h.g.three) { cand = 'triangle'; break; } }
+    if (!cand && !(vis.length === 2 && vis[0].g.pointer && vis[1].g.pointer)) for (const h of vis) if (h.g.point) { cand = 'move'; break; }
+  }
+  if (cand !== holdCand) { holdCand = cand; holdT = 0; holdFired = false; }
+  else if (cand) { holdT += dt * 1000; if (holdT >= (cand === 'undo' ? 350 : 450) && !holdFired) { holdFired = true; setLocked(true); if (cand === 'undo') { const can = hi > 0; undo(); toast(can ? 'Undo' : 'Nothing to undo'); } else if (tool !== GT[cand]) { setTool(GT[cand]); toast(GT[cand] === 'move' ? 'Select' : TYPE_NAME[GT[cand]]); } } }
+  document.querySelectorAll('.tb').forEach(b => {
+    const p = holdCand && b.dataset.tool === GT[holdCand] && !holdFired ? Math.min(1, holdT / 450) : 0;
+    b.querySelector('.bar').style.width = p * 100 + '%';
+  });
+}
+
+/* ---- camera + MediaPipe ---- */
+const video = $('#cam');
+let landmarker = null, handsOn = false, lastVT = -1, stream = null;
+let source = null, peer = null, phoneCall = null;
+async function ensureLandmarker() {
+  if (landmarker) return;
+  const { HandLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+  const fs = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+  const opts = d => ({ baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate: d },
+    runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: 0.6, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+  try { landmarker = await HandLandmarker.createFromOptions(fs, opts('GPU')); } catch { landmarker = await HandLandmarker.createFromOptions(fs, opts('CPU')); }
+}
+const handsLabel = t => { $('#handsBtn').lastChild.textContent = t; };
+async function useStream(st, src) {
+  if (stream && stream !== st) stream.getTracks().forEach(t => t.stop());
+  stream = st; source = src;
+  video.srcObject = st; await video.play().catch(() => {});
+  handsLabel('Loading…'); await ensureLandmarker();
+  handsOn = true; $('#handsBtn').classList.add('live'); handsLabel(src === 'phone' ? 'Hands · phone' : 'Hands on');
+  toast('Hands on: raise your hands', true); updateHint();
+}
+async function startHands() {
+  try {
+    handsLabel('Starting…');
+    const st = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+    await useStream(st, 'webcam');
+  } catch (e) {
+    console.error(e); handsLabel('Hands');
+    toast(e?.name === 'NotAllowedError' ? 'Camera permission denied' : 'Could not start hands: ' + (e.message || e), true);
+  }
+}
+/* phone as camera: PeerJS (WebRTC) streams the phone camera here; tracking runs on this computer */
+const pstat = t => $('#pstatus').textContent = t;
+function phoneLink(id) {
+  const base = $('#phoneUrl').value.trim().split('?')[0];
+  return base + '?cam=' + encodeURIComponent(id);
+}
+function drawQR() {
+  if (!peer?.id || !window.qrcode) return;
+  const base = $('#phoneUrl').value.trim();
+  if (!/^https:\/\//i.test(base)) { $('#qr').innerHTML = '<span class="muted" style="padding:16px">Paste the https:// address where this page is hosted</span>'; return; }
+  const q = window.qrcode(0, 'M'); q.addData(phoneLink(peer.id)); q.make();
+  $('#qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+}
+async function phoneFlow() {
+  $('#phoneModal').classList.add('on');
+  const here = location.href.split('?')[0].split('#')[0];
+  let saved = ''; try { saved = localStorage.getItem('airshape-host') || ''; } catch {}
+  const hosted = /^https:/.test(here) && !/localhost|127\.0\.0\.1/.test(here);
+  if (!$('#phoneUrl').value) $('#phoneUrl').value = hosted ? here : saved;
+  $('#pnote').textContent = hosted ? 'The phone opens this same page in camera mode.'
+    : 'This page is opened from a file, so your phone can\'t reach it. Host the file on any https:// address (GitHub Pages, Netlify Drop, Railway…) and paste that link above.';
+  pstat('Getting a connection code…');
+  try {
+    await Promise.all([loadScript(PEER_JS), loadScript(QR_JS)]);
+    if (!peer || peer.destroyed) {
+      const id = 'airshape-' + Math.random().toString(36).slice(2, 10);
+      peer = new window.Peer(id);
+      peer.on('open', () => { drawQR(); pstat('Waiting for your phone…'); });
+      peer.on('disconnected', () => { try { peer.reconnect(); } catch {} });
+      peer.on('error', e => pstat('Connection error: ' + e.type));
+      peer.on('call', c => {
+        if (phoneCall) phoneCall.close();
+        phoneCall = c; c.answer();
+        pstat('Phone found, connecting…');
+        c.on('stream', async st => {
+          pstat('Connected. Loading hand tracking…');
+          try { await useStream(st, 'phone'); $('#phoneModal').classList.remove('on'); }
+          catch (e) { pstat('Could not start: ' + (e.message || e)); }
+        });
+        c.on('close', () => { if (phoneCall === c) { phoneCall = null; if (source === 'phone') { stopHands(); toast('Phone disconnected', true); } } });
+      });
+    } else { drawQR(); pstat(phoneCall ? 'Phone connected' : 'Waiting for your phone…'); }
+  } catch (e) { pstat(e.message || String(e)); }
+}
+$('#phoneUrl').addEventListener('input', () => { try { localStorage.setItem('airshape-host', $('#phoneUrl').value.trim()); } catch {} drawQR(); });
+$('#pcancel').addEventListener('click', () => $('#phoneModal').classList.remove('on'));
+$('#handsMenu').addEventListener('click', e => {
+  const b = e.target.closest('[data-src]'); if (!b) return;
+  $('#handsMenu').classList.remove('on');
+  b.dataset.src === 'phone' ? phoneFlow() : startHands();
+});
+function stopHands() {
+  handsOn = false; stream?.getTracks().forEach(t => t.stop()); stream = null;
+  if (source === 'phone' && phoneCall) { const c = phoneCall; phoneCall = null; c.close(); }
+  source = null;
+  hands.forEach(h => { cancelPtr(h.id); h.hide(); h.cursorEl.classList.remove('on'); });
+  $('#handsBtn').classList.remove('live'); $('#handsBtn').lastChild.textContent = 'Hands'; updateHint();
+  renderer.clear();
+}
+$('#handsBtn').addEventListener('click', e => { e.stopPropagation(); if (handsOn) stopHands(); else { $('#exportMenu').classList.remove('on'); $('#handsMenu').classList.toggle('on'); } });
+
+function assign(lms, now) {
+  const used = new Set(), out = [];
+  for (const lm of lms) {
+    let best = -1, bd = 0.25;
+    hands.forEach((h, i) => { if (used.has(i) || !h.visible) return; const d = Math.hypot(lm[0].x - h.sm[0], lm[0].y - h.sm[1]); if (d < bd) { bd = d; best = i; } });
+    if (best < 0) best = hands.findIndex((h, i) => !used.has(i) && !h.visible);
+    if (best < 0) best = hands.findIndex((h, i) => !used.has(i));
+    if (best < 0) continue; used.add(best); out.push([hands[best], lm]);
+  }
+  for (const [h, lm] of out) { h.update(lm, now); handFrame(h); }
+}
+
+/* =========================================================
+   MAIN LOOP
+   ========================================================= */
+const clock = new THREE.Clock();
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, clock.getDelta()), now = performance.now();
+  if (handsOn && landmarker && video.readyState >= 2 && video.currentTime !== lastVT) {
+    lastVT = video.currentTime;
+    const va = video.videoWidth / video.videoHeight, H0 = 2 * TANH * CAM_Z, W0 = H0 * camera.aspect;
+    if (W0 / H0 > va) { imgW = W0; imgH = W0 / va; } else { imgH = H0; imgW = H0 * va; }
+    assign(landmarker.detectForVideo(video, now).landmarks || [], now);
+    fists();
+  }
+  if (handsOn) {
+    for (const h of hands) if (h.visible && now - h.lastSeen > 260) { cancelPtr(h.id); ptrUi.delete(h.id); hoverOf[h.id] = null; h.hide(); ovDirty = true; }
+    detectTool(dt);
+    if (locked && hands.every(h => !h.visible || h.g.open)) setLocked(false);
+    renderer.render(scene, camera);
+  }
+  if (docDirty) { renderDoc(); docDirty = false; }
+  if (ovDirty) { renderOverlay(); ovDirty = false; }
+}
+
+/* =========================================================
+   START
+   ========================================================= */
+function starter() {
+  const f = makeNode('frame', 0, 0, 1200, 760, { name: 'Landing' });
+  const P = f.id, nodes = [f];
+  const add = (t, x, y, w, h, ex) => { const n = makeNode(t, x, y, w, h, { parent: P, ...ex }); nodes.push(n); doc.push(n); return n; };
+  doc.push(f);
+  add('rect', 0, 0, 1200, 72, { name: 'Nav', fill: '#F4F3EE' });
+  add('rect', 48, 24, 24, 24, { name: 'Logo mark', radius: 7 });
+  add('text', 84, 22, 0, 0, { name: 'Brand', text: 'AirShape', fontSize: 20, fontWeight: 700 });
+  add('text', 96, 210, 0, 0, { name: 'Headline', text: 'Design with\nyour hands.', fontSize: 76, fontWeight: 750 });
+  add('text', 98, 410, 0, 0, { name: 'Subhead', text: 'Pinch to draw. Fist to pan. Gestures pick the tools.', fontSize: 22, fontWeight: 400, fill: '#6F6C64' });
+  add('rect', 98, 480, 196, 56, { name: 'Button', radius: 14 });
+  add('text', 135, 494, 0, 0, { name: 'Button label', text: 'Get started', fontSize: 20, fontWeight: 600, fill: '#FFFFFF' });
+  add('ellipse', 740, 140, 320, 320, { name: 'Sun' });
+  add('triangle', 690, 330, 420, 330, { name: 'Peak', fill: '#C15F3C' });
+  add('rect', 98, 600, 330, 84, { name: 'Note card', fill: '#F4F3EE', radius: 18 });
+  add('text', 126, 628, 0, 0, { name: 'Note', text: 'Hold a gesture to switch tools', fontSize: 18, fontWeight: 500, fill: '#6F6C64' });
+}
+try {
+  const saved = JSON.parse(localStorage.getItem('airshape-design') || 'null');
+  if (saved?.doc?.length) { doc = saved.doc; $('#fname').value = saved.name || 'Untitled'; } else starter();
+} catch { starter(); }
+setTool('move');
+hist = [snapshot()]; hi = 0;
+refreshAll();
+zoomFit();
+loop();
+}
+
+/* =========================================================
+   PHONE CAMERA PAGE  (opened from the QR code: ?cam=<computer id>)
+   ========================================================= */
+function phoneMain() {
+  document.body.className = 'phone';
+  const ui = document.createElement('div'); ui.id = 'phoneUI';
+  ui.innerHTML = `<div class="top"><div class="logo"><i></i></div>AirShape camera</div>
+    <video id="pv" playsinline muted autoplay></video>
+    <div class="st" id="pst">Tap <b>Start camera</b> to stream to your computer</div>
+    <div class="row"><button id="pflip">Switch camera</button><button class="pri" id="pgo">Start camera</button></div>
+    <div class="tip">Put the phone by your monitor, facing you, in landscape if you can. Keep this page open; the screen stays awake.</div>`;
+  document.body.appendChild(ui);
+  const pv = ui.querySelector('#pv'), st = ui.querySelector('#pst'), go = ui.querySelector('#pgo');
+  let stream = null, facing = 'user', peer = null, call = null, wake = null;
+  const say = h => st.innerHTML = h;
+  async function getCam() {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: false,
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
+    pv.srcObject = s; pv.classList.toggle('mirror', facing === 'user'); await pv.play().catch(() => {});
+    return s;
+  }
+  async function keepAwake() { try { wake = await navigator.wakeLock?.request('screen'); } catch {} }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && stream) keepAwake(); });
+  function connect() {
+    say('Connecting to your computer…');
+    call = peer.call(PHONE_TARGET, stream);
+    if (!call) return say('Could not connect. Try again.');
+    call.on('close', () => { say('Disconnected. Tap <b>Reconnect</b>'); go.textContent = 'Reconnect'; go.disabled = false; });
+    call.peerConnection?.addEventListener('connectionstatechange', () => {
+      const cs = call.peerConnection.connectionState;
+      if (cs === 'connected') { say('<b>● Live</b>: your computer is using this camera'); go.textContent = 'Connected'; go.disabled = true; }
+      if (cs === 'failed') { say('Connection failed. Are both devices on the same Wi-Fi?'); go.textContent = 'Reconnect'; go.disabled = false; }
+    });
+  }
+  go.addEventListener('click', async () => {
+    go.disabled = true;
+    try {
+      if (!window.isSecureContext) throw new Error('This page must be opened over https:// for the camera to work.');
+      if (!stream) { say('Starting camera…'); stream = await getCam(); }
+      keepAwake();
+      if (!peer || peer.destroyed) {
+        say('Starting connection…'); await loadScript(PEER_JS);
+        peer = new window.Peer();
+        peer.on('open', connect);
+        peer.on('error', e => { say(e.type === 'peer-unavailable' ? 'Computer not found. Open the QR code again on your computer.' : 'Connection error: ' + e.type); go.textContent = 'Reconnect'; go.disabled = false; });
+        peer.on('disconnected', () => { try { peer.reconnect(); } catch {} });
+      } else connect();
+    } catch (e) { say(e.name === 'NotAllowedError' ? 'Camera permission was denied' : (e.message || String(e))); go.disabled = false; }
+  });
+  ui.querySelector('#pflip').addEventListener('click', async () => {
+    facing = facing === 'user' ? 'environment' : 'user';
+    try {
+      const old = stream; stream = await getCam();
+      const track = stream.getVideoTracks()[0];
+      const sender = call?.peerConnection?.getSenders().find(x => x.track && x.track.kind === 'video');
+      if (sender) await sender.replaceTrack(track);
+      old?.getTracks().forEach(t => t.stop());
+    } catch (e) { say('Could not switch camera: ' + (e.message || e)); }
+  });
+}
+</script>
+</body>
+</html>
