@@ -7,4 +7,5 @@ A Figma-style design tool you control with your hands, in one HTML file (`index.
 - After a gesture picks a tool, open your hand, then pinch to act.
 - Mouse & keyboard work too (V F R O Y T H, Space-drag, Ctrl+scroll, Ctrl+Z/D).
 
-`server.js` is a tiny dependency-free static server used for hosting on Railway (`npm start`). Phone camera needs the page served over https.
+`server.js` serves the page and runs the `/ws` pairing channel for **phone as camera** (`npm start`, uses the `ws` package).
+The phone and computer pair through the server; video goes directly over WebRTC when possible and automatically falls back to frames relayed through the server when a direct link can't be made (different networks, client-isolated Wi-Fi). Phone camera needs https.
