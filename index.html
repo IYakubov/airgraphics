@@ -184,7 +184,8 @@ body.phone > :not(#phoneUI){display:none!important}
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-const PEER_JS = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
+const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+const wsUrlFor = base => { const u = new URL(base, location.href); return (u.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + u.host + '/ws'; };
 const QR_JS = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
 const loadScript = src => new Promise((res, rej) => {
   if (document.querySelector(`script[src="${src}"]`)) return res();
@@ -993,7 +994,7 @@ function detectTool(dt) {
 /* ---- camera + MediaPipe ---- */
 const video = $('#cam');
 let landmarker = null, handsOn = false, lastVT = -1, stream = null;
-let source = null, peer = null, phoneCall = null;
+let source = null;
 async function ensureLandmarker() {
   if (landmarker) return;
   const { HandLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
@@ -1004,7 +1005,8 @@ async function ensureLandmarker() {
 }
 const handsLabel = t => { $('#handsBtn').lastChild.textContent = t; };
 async function useStream(st, src) {
-  if (stream && stream !== st) stream.getTracks().forEach(t => t.stop());
+  if (stream === st) return;
+  if (stream) stream.getTracks().forEach(t => t.stop());
   stream = st; source = src;
   video.srcObject = st; await video.play().catch(() => {});
   handsLabel('Loading…'); await ensureLandmarker();
@@ -1021,66 +1023,116 @@ async function startHands() {
     toast(e?.name === 'NotAllowedError' ? 'Camera permission denied' : 'Could not start hands: ' + (e.message || e), true);
   }
 }
-/* phone as camera: PeerJS (WebRTC) streams the phone camera here; tracking runs on this computer */
+/* ---- phone as camera ----
+   The phone and this page pair through the hosting server (/ws). Video goes phone → computer
+   directly over WebRTC; if that can't connect, the phone sends JPEG frames through the server. */
 const pstat = t => $('#pstatus').textContent = t;
-function phoneLink(id) {
-  const base = $('#phoneUrl').value.trim().split('?')[0];
-  return base + '?cam=' + encodeURIComponent(id);
-}
+let sig = null, room = null, rpc = null, rpcQueue = [], relay = null, phoneWanted = false, sigTimer = null;
+const sigSend = m => { if (sig?.readyState === 1) sig.send(JSON.stringify(m)); };
+const baseLink = () => $('#phoneUrl').value.trim().split('?')[0].split('#')[0];
 function drawQR() {
-  if (!peer?.id || !window.qrcode) return;
-  const base = $('#phoneUrl').value.trim();
-  if (!/^https:\/\//i.test(base)) { $('#qr').innerHTML = '<span class="muted" style="padding:16px">Paste the https:// address where this page is hosted</span>'; return; }
-  const q = window.qrcode(0, 'M'); q.addData(phoneLink(peer.id)); q.make();
+  const base = baseLink();
+  if (!/^https?:\/\//i.test(base)) { $('#qr').innerHTML = '<span class="muted" style="padding:16px">Paste the https:// address where this page is hosted</span>'; return false; }
+  if (!window.qrcode) return false;
+  const q = window.qrcode(0, 'M'); q.addData(base + '?cam=' + room); q.make();
   $('#qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  return true;
+}
+function closeRtc() { try { rpc?.close(); } catch {} rpc = null; rpcQueue = []; }
+function connectSig() {
+  clearTimeout(sigTimer);
+  try { sig?.close(); } catch {}
+  let url; try { url = wsUrlFor(baseLink()); } catch { return; }
+  const ws = sig = new WebSocket(url); ws.binaryType = 'arraybuffer';
+  ws.onopen = () => { sigSend({ t: 'host', room }); pstat('Waiting for your phone…'); };
+  ws.onmessage = e => { if (typeof e.data !== 'string') return relayFrame(e.data); hostMsg(JSON.parse(e.data)); };
+  ws.onclose = () => {
+    if (sig !== ws || !phoneWanted) return;
+    pstat('Lost the server connection, retrying…');
+    sigTimer = setTimeout(connectSig, 1500);
+  };
+}
+setInterval(() => sigSend({ t: 'ping' }), 20000);
+async function hostMsg(m) {
+  if (m.t === 'joined') { pstat('Phone connected. Starting video…'); closeRtc(); }
+  else if (m.t === 'offer') {
+    closeRtc();
+    const pc = rpc = new RTCPeerConnection({ iceServers: ICE });
+    pc.onicecandidate = e => e.candidate && sigSend({ t: 'ice', c: e.candidate });
+    pc.ontrack = e => attachPhone(e.streams[0] || new MediaStream([e.track]), 'direct');
+    await pc.setRemoteDescription(m.sdp);
+    for (const c of rpcQueue.splice(0)) pc.addIceCandidate(c).catch(() => {});
+    await pc.setLocalDescription(await pc.createAnswer());
+    sigSend({ t: 'answer', sdp: pc.localDescription });
+  }
+  else if (m.t === 'ice') { if (rpc?.remoteDescription) rpc.addIceCandidate(m.c).catch(() => {}); else rpcQueue.push(m.c); }
+  else if (m.t === 'relay') {
+    closeRtc();
+    const c = document.createElement('canvas'); c.width = 640; c.height = 360;
+    relay = { c, ctx: c.getContext('2d'), busy: false };
+    attachPhone(c.captureStream(30), 'relay');
+  }
+  else if (m.t === 'left') {
+    closeRtc(); relay = null;
+    if (source === 'phone') { stopHands(true); toast('Phone disconnected', true); }
+    pstat('Phone disconnected. Scan the code again.');
+  }
+}
+async function relayFrame(buf) {
+  if (!relay || relay.busy) return;
+  relay.busy = true;
+  try {
+    const bmp = await createImageBitmap(new Blob([buf], { type: 'image/jpeg' }));
+    if (relay.c.width !== bmp.width || relay.c.height !== bmp.height) { relay.c.width = bmp.width; relay.c.height = bmp.height; }
+    relay.ctx.drawImage(bmp, 0, 0); bmp.close();
+  } catch {}
+  if (relay) relay.busy = false;
+}
+async function attachPhone(st, mode) {
+  try {
+    pstat('Connected. Loading hand tracking…');
+    await useStream(st, 'phone');
+    $('#phoneModal').classList.remove('on');
+    handsLabel(mode === 'relay' ? 'Hands · phone (server)' : 'Hands · phone');
+  } catch (e) { pstat('Could not start: ' + (e.message || e)); }
 }
 async function phoneFlow() {
   $('#phoneModal').classList.add('on');
+  phoneWanted = true;
   const here = location.href.split('?')[0].split('#')[0];
   let saved = ''; try { saved = localStorage.getItem('airshape-host') || ''; } catch {}
-  const hosted = /^https:/.test(here) && !/localhost|127\.0\.0\.1/.test(here);
+  const hosted = /^https?:/.test(here) && !(/^http:/.test(here) && !/localhost|127\.0\.0\.1/.test(here));
   if (!$('#phoneUrl').value) $('#phoneUrl').value = hosted ? here : saved;
-  $('#pnote').textContent = hosted ? 'The phone opens this same page in camera mode.'
-    : 'This page is opened from a file, so your phone can\'t reach it. Host the file on any https:// address (GitHub Pages, Netlify Drop, Railway…) and paste that link above.';
-  pstat('Getting a connection code…');
-  try {
-    await Promise.all([loadScript(PEER_JS), loadScript(QR_JS)]);
-    if (!peer || peer.destroyed) {
-      const id = 'airshape-' + Math.random().toString(36).slice(2, 10);
-      peer = new window.Peer(id);
-      peer.on('open', () => { drawQR(); pstat('Waiting for your phone…'); });
-      peer.on('disconnected', () => { try { peer.reconnect(); } catch {} });
-      peer.on('error', e => pstat('Connection error: ' + e.type));
-      peer.on('call', c => {
-        if (phoneCall) phoneCall.close();
-        phoneCall = c; c.answer();
-        pstat('Phone found, connecting…');
-        c.on('stream', async st => {
-          pstat('Connected. Loading hand tracking…');
-          try { await useStream(st, 'phone'); $('#phoneModal').classList.remove('on'); }
-          catch (e) { pstat('Could not start: ' + (e.message || e)); }
-        });
-        c.on('close', () => { if (phoneCall === c) { phoneCall = null; if (source === 'phone') { stopHands(); toast('Phone disconnected', true); } } });
-      });
-    } else { drawQR(); pstat(phoneCall ? 'Phone connected' : 'Waiting for your phone…'); }
-  } catch (e) { pstat(e.message || String(e)); }
+  $('#pnote').textContent = hosted ? 'The phone opens this same page in camera mode. Same Wi-Fi gives the smoothest video, but any network works.'
+    : 'This page is opened from a file, so your phone can\'t reach it. Paste the https:// address where it is hosted.';
+  if (!room) room = Math.random().toString(36).slice(2, 8);
+  try { await loadScript(QR_JS); } catch (e) { pstat(e.message); }
+  if (!drawQR()) { pstat(''); return; }
+  if (!sig || sig.readyState > 1) { pstat('Connecting to the server…'); connectSig(); }
+  else pstat(source === 'phone' ? 'Phone connected' : 'Waiting for your phone…');
 }
-$('#phoneUrl').addEventListener('input', () => { try { localStorage.setItem('airshape-host', $('#phoneUrl').value.trim()); } catch {} drawQR(); });
-$('#pcancel').addEventListener('click', () => $('#phoneModal').classList.remove('on'));
+$('#phoneUrl').addEventListener('input', () => {
+  try { localStorage.setItem('airshape-host', $('#phoneUrl').value.trim()); } catch {}
+  if (drawQR()) connectSig();
+});
+$('#pcancel').addEventListener('click', () => { $('#phoneModal').classList.remove('on'); if (source !== 'phone') { phoneWanted = false; try { sig?.close(); } catch {} sig = null; } });
 $('#handsMenu').addEventListener('click', e => {
   const b = e.target.closest('[data-src]'); if (!b) return;
   $('#handsMenu').classList.remove('on');
   b.dataset.src === 'phone' ? phoneFlow() : startHands();
 });
-function stopHands() {
+function stopHands(fromPhone) {
   handsOn = false; stream?.getTracks().forEach(t => t.stop()); stream = null;
-  if (source === 'phone' && phoneCall) { const c = phoneCall; phoneCall = null; c.close(); }
+  if (source === 'phone') {
+    closeRtc(); relay = null;
+    if (!fromPhone) { sigSend({ t: 'stop' }); phoneWanted = false; try { sig?.close(); } catch {} sig = null; }
+  }
   source = null;
   hands.forEach(h => { cancelPtr(h.id); h.hide(); h.cursorEl.classList.remove('on'); });
   $('#handsBtn').classList.remove('live'); $('#handsBtn').lastChild.textContent = 'Hands'; updateHint();
   renderer.clear();
 }
-$('#handsBtn').addEventListener('click', e => { e.stopPropagation(); if (handsOn) stopHands(); else { $('#exportMenu').classList.remove('on'); $('#handsMenu').classList.toggle('on'); } });
+$('#handsBtn').addEventListener('click', e => { e.stopPropagation(); if (handsOn) stopHands(false); else { $('#exportMenu').classList.remove('on'); $('#handsMenu').classList.toggle('on'); } });
 
 function assign(lms, now) {
   const used = new Set(), out = [];
@@ -1161,9 +1213,12 @@ function phoneMain() {
     <div class="row"><button id="pflip">Switch camera</button><button class="pri" id="pgo">Start camera</button></div>
     <div class="tip">Put the phone by your monitor, facing you, in landscape if you can. Keep this page open; the screen stays awake.</div>`;
   document.body.appendChild(ui);
+  const ROOM = PHONE_TARGET, FORCE_RELAY = new URLSearchParams(location.search).has('relay');
   const pv = ui.querySelector('#pv'), st = ui.querySelector('#pst'), go = ui.querySelector('#pgo');
-  let stream = null, facing = 'user', peer = null, call = null, wake = null;
+  let stream = null, facing = 'user', ws = null, pc = null, queue = [], mode = null, fallbackT = null, wake = null, live = false;
   const say = h => st.innerHTML = h;
+  const send = m => { if (ws?.readyState === 1) ws.send(JSON.stringify(m)); };
+  const idle = (msg) => { live = false; mode = null; say(msg); go.textContent = 'Reconnect'; go.disabled = false; };
   async function getCam() {
     const s = await navigator.mediaDevices.getUserMedia({ audio: false,
       video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } });
@@ -1172,39 +1227,79 @@ function phoneMain() {
   }
   async function keepAwake() { try { wake = await navigator.wakeLock?.request('screen'); } catch {} }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && stream) keepAwake(); });
+  setInterval(() => send({ t: 'ping' }), 20000);
+
+  function stopRtc() { clearTimeout(fallbackT); try { pc?.close(); } catch {} pc = null; queue = []; }
+  async function startRtc() {
+    stopRtc(); mode = 'rtc';
+    if (FORCE_RELAY || !window.RTCPeerConnection) return goRelay();
+    say('Connecting video…');
+    pc = new RTCPeerConnection({ iceServers: ICE });
+    stream.getTracks().forEach(t => pc.addTrack(t, stream));
+    pc.onicecandidate = e => e.candidate && send({ t: 'ice', c: e.candidate });
+    pc.onconnectionstatechange = () => {
+      if (!pc) return;
+      if (pc.connectionState === 'connected') { clearTimeout(fallbackT); live = true; say('<b>● Live</b> · direct video to your computer'); go.textContent = 'Connected'; go.disabled = true; }
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') goRelay();
+    };
+    fallbackT = setTimeout(() => { if (pc && pc.connectionState !== 'connected') goRelay(); }, 7000);
+    await pc.setLocalDescription(await pc.createOffer());
+    send({ t: 'offer', sdp: pc.localDescription });
+  }
+  // fallback: JPEG frames through the server
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d');
+  let sending = false;
+  function goRelay() {
+    if (mode === 'relay') return;
+    stopRtc(); mode = 'relay'; send({ t: 'relay' });
+    live = true; say('<b>● Live</b> · video through the server'); go.textContent = 'Connected'; go.disabled = true;
+    relayLoop();
+  }
+  function relayLoop() {
+    if (mode !== 'relay' || !ws || ws.readyState !== 1) return;
+    setTimeout(relayLoop, 55);                     // ~18 fps
+    if (sending || ws.bufferedAmount > 120000 || !pv.videoWidth) return;
+    const w = 640, h = Math.round(w * pv.videoHeight / pv.videoWidth);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    cx.drawImage(pv, 0, 0, w, h); sending = true;
+    cv.toBlob(b => { sending = false; if (b && ws?.readyState === 1 && mode === 'relay') b.arrayBuffer().then(buf => ws.send(buf)); }, 'image/jpeg', 0.62);
+  }
+
   function connect() {
     say('Connecting to your computer…');
-    call = peer.call(PHONE_TARGET, stream);
-    if (!call) return say('Could not connect. Try again.');
-    call.on('close', () => { say('Disconnected. Tap <b>Reconnect</b>'); go.textContent = 'Reconnect'; go.disabled = false; });
-    call.peerConnection?.addEventListener('connectionstatechange', () => {
-      const cs = call.peerConnection.connectionState;
-      if (cs === 'connected') { say('<b>● Live</b>: your computer is using this camera'); go.textContent = 'Connected'; go.disabled = true; }
-      if (cs === 'failed') { say('Connection failed. Are both devices on the same Wi-Fi?'); go.textContent = 'Reconnect'; go.disabled = false; }
-    });
+    try { ws?.close(); } catch {}
+    const sock = ws = new WebSocket(wsUrlFor(location.href)); sock.binaryType = 'arraybuffer';
+    sock.onopen = () => send({ t: 'join', room: ROOM });
+    sock.onmessage = async e => {
+      if (typeof e.data !== 'string') return;
+      const m = JSON.parse(e.data);
+      if (m.t === 'nohost') { stopRtc(); idle('Computer not found. Open the QR code on your computer again, then tap <b>Reconnect</b>.'); }
+      else if (m.t === 'ok') startRtc().catch(() => goRelay());
+      else if (m.t === 'answer') { if (pc) { await pc.setRemoteDescription(m.sdp).catch(() => {}); for (const c of queue.splice(0)) pc.addIceCandidate(c).catch(() => {}); } }
+      else if (m.t === 'ice') { if (pc?.remoteDescription) pc.addIceCandidate(m.c).catch(() => {}); else queue.push(m.c); }
+      else if (m.t === 'left' || m.t === 'stop') { stopRtc(); idle('Your computer stopped using the camera. Tap <b>Reconnect</b> to start again.'); }
+    };
+    sock.onclose = () => {
+      if (ws !== sock) return;
+      const wasLive = live; stopRtc();
+      if (wasLive) { say('Connection dropped, reconnecting…'); setTimeout(() => { if (ws === sock) connect(); }, 1500); }
+      else if (mode !== null || go.disabled) idle('Could not reach the server. Check your internet, then tap <b>Reconnect</b>.');
+    };
   }
   go.addEventListener('click', async () => {
     go.disabled = true;
     try {
       if (!window.isSecureContext) throw new Error('This page must be opened over https:// for the camera to work.');
       if (!stream) { say('Starting camera…'); stream = await getCam(); }
-      keepAwake();
-      if (!peer || peer.destroyed) {
-        say('Starting connection…'); await loadScript(PEER_JS);
-        peer = new window.Peer();
-        peer.on('open', connect);
-        peer.on('error', e => { say(e.type === 'peer-unavailable' ? 'Computer not found. Open the QR code again on your computer.' : 'Connection error: ' + e.type); go.textContent = 'Reconnect'; go.disabled = false; });
-        peer.on('disconnected', () => { try { peer.reconnect(); } catch {} });
-      } else connect();
-    } catch (e) { say(e.name === 'NotAllowedError' ? 'Camera permission was denied' : (e.message || String(e))); go.disabled = false; }
+      keepAwake(); connect();
+    } catch (e) { say(e.name === 'NotAllowedError' ? 'Camera permission was denied. Allow it in your browser settings.' : (e.message || String(e))); go.disabled = false; }
   });
   ui.querySelector('#pflip').addEventListener('click', async () => {
     facing = facing === 'user' ? 'environment' : 'user';
     try {
       const old = stream; stream = await getCam();
-      const track = stream.getVideoTracks()[0];
-      const sender = call?.peerConnection?.getSenders().find(x => x.track && x.track.kind === 'video');
-      if (sender) await sender.replaceTrack(track);
+      const sender = pc?.getSenders().find(x => x.track && x.track.kind === 'video');
+      if (sender) await sender.replaceTrack(stream.getVideoTracks()[0]);
       old?.getTracks().forEach(t => t.stop());
     } catch (e) { say('Could not switch camera: ' + (e.message || e)); }
   });

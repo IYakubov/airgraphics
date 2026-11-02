@@ -1,8 +1,15 @@
 {
   "name": "airgraphics",
   "version": "1.0.0",
-  "description": "AirShape Design — a Figma-style design tool you control with your hands (webcam or phone camera)",
+  "description": "AirShape Design \u2014 a Figma-style design tool you control with your hands (webcam or phone camera)",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" }
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
 }
